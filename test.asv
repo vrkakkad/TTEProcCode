@@ -1,0 +1,14 @@
+%%
+clear
+close all
+clc
+
+tic;load res_20140816090612;toc
+
+
+%%  BPF Filter
+
+temp1 = zeros(size(arfidata.disp));
+temp2 = zeros(size(sweidata
+[blah,arfidata.disp] = filtArfiData(arfidata.axial,arfidata.trackTime,arfidata.disp);
+[blah,sweidata.disp] = filtArfiData(sweidata.axial,sweidata.trackTime,sweidata.disp);
