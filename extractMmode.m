@@ -194,13 +194,13 @@ else
         datastruct.disp_off = reshape(datastruct.disp_off,length(axial),par.nBeams,par.numBeamGroups*par.numAcq,par.nref);
         datastruct.disp_on = reshape(datastruct.disp_on,length(axial),par.nBeams,par.numBeamGroups*par.numAcq,par.nref);
         if options.dispEst.ccmode
-            datastruct.cc_off = reshape(datastruct.cc_off,length(axial),par.nBeams,par.numBeamGroups*par.numAcq,par.nref);
-            datastruct.cc_on = reshape(datastruct.cc_on,length(axial),par.nBeams,par.numBeamGroups*par.numAcq,par.nref);
+            datastruct.cc_off = reshape(datastruct.ccout_off,length(axial),par.nBeams,par.numBeamGroups*par.numAcq,par.nref);
+            datastruct.cc_on = reshape(datastruct.ccout_on,length(axial),par.nBeams,par.numBeamGroups*par.numAcq,par.nref);
         end
     elseif (strcmpi(datatype,'swei') && ~strcmpi(options.dispEst.ref_type,'independent'))
         datastruct.disp = reshape(datastruct.disp,length(axial),par.nBeams,par.numBeamGroups*par.numAcq,par.ensemble);
         if options.dispEst.ccmode
-            datastruct.cc_all = reshape(datastruct.cc_all,length(axial),par.nBeams,par.numBeamGroups*par.numAcq,par.ensemble);
+            datastruct.cc_all = reshape(datastruct.ccout,length(axial),par.nBeams,par.numBeamGroups*par.numAcq,par.ensemble);
         end
     end
     

@@ -1,4 +1,4 @@
-function [t, arfidata] = filtArfiData(axial, t, arfidata, cutoffFreq, axFiltKer, stdCutoff);
+function [t, arfidata] = filtArfiData(axial, t, arfidata, nref, par, cutoffFreq, axFiltKer);
 % function [t arfidata] = filtArfiData(axial, t, arfidata, cutoffFreq, axFiltKer, stdCutoff);
 %
 % this function is designed to work with a single acquisition (numAcq=1)
@@ -8,19 +8,25 @@ function [t, arfidata] = filtArfiData(axial, t, arfidata, cutoffFreq, axFiltKer,
 % if nargin<5,axFiltKer = 0.5;end % axial filter length (mm)
 % if nargin<6,stdCutoff = 10;end % cutoff in microns for the minimum standard deviation for push/reverb time steps
 
-if nargin<4,cutoffFreq = [20 1000];end % filter cutoff frequencies (Hz)
-if nargin<5,axFiltKer = 0.5;end % axial filter length (mm)
-if nargin<6,stdCutoff = 10;end % cutoff in microns for the minimum standard deviation for push/reverb time steps
+if nargin<6,cutoffFreq = [20 1000];end % filter cutoff frequencies (Hz)
+if nargin<7,axFiltKer = 0.5;end % axial filter length (mm)
+% if nargin<7,stdCutoff = 10;end % cutoff in microns for the minimum standard deviation for push/reverb time steps
 
 
 % determine push and reverb time steps, then remove them
-if ndims(arfidata)==3
-    out = squeeze(max(std(arfidata,0,2),[],1));
-    ts = out<stdCutoff; % valid time steps
-elseif ndims(arfidata)==4
-    out = squeeze(max(max(std(arfidata,0,3),[],1),[],2));
-    ts = out<stdCutoff; % valid time steps
-end
+
+
+% if ndims(arfidata)==3
+%     out = squeeze(max(std(arfidata,0,2),[],1));
+%     stem(out)
+%     ts = out<stdCutoff; % valid time steps
+% elseif ndims(arfidata)==4
+%     out = squeeze(max(max(std(arfidata,0,3),[],1),[],2));
+%     ts = out<stdCutoff; % valid time steps
+% end
+
+ts = true(1,size(arfidata,3))';
+ts(nref+(1:par.npush+2)) = false;
 
 % Set up filtering parameters
 dt = median(diff(t));
@@ -30,6 +36,7 @@ t = t(ts);t = round(t*1e4)/1e4; % numerical tolerance issues
 tn = t(1):dt:t(end);tn = round(tn*1e4)/1e4; % numerical tolerance issues
 fs = 1./dt*1e3;
 [B A] = butter(2, cutoffFreq./(fs/2)); % filter at 20Hz-1kHz
+B = double(B); A = double(A);
 n = max(1,round(axFiltKer./mean(diff(axial)))); % axial filter (minimum 1 sample)
 
 % interpolate and filter the data
@@ -42,13 +49,14 @@ fprintf(1, 'Axial median filter complete in %0.2f seconds\n', toc(tstart));
 
 tstart = tic;
 arfidata = temporalFilter(arfidata, t, tn, B, A); % interpolate and filter in time
-
-% Adding back lost DC component (values hard coded for TTE sequences)
-base = mean(arfidata(:,:,1:50),3);
-base = repmat(base,1,1,96);
-arfidata = arfidata - base;
 fprintf(1, 'Temporal filter complete in %0.2f seconds\n', toc(tstart));
 arfidata = single(arfidata);
+
+% Adding back lost DC component (values hard coded for TTE sequences)
+base = mean(arfidata(:,:,1:nref),3);
+base = repmat(base,[1 1 size(arfidata,3)]);
+arfidata = arfidata - base;
+
 t = tn;
 
 end
@@ -59,6 +67,6 @@ D = size(arfidata);
 arfidata = reshape(arfidata, [], D(end));
 data = interp1(t(:), arfidata', tn(:), 'spline')';
 D(end) = length(tn);
-data = single(filtfilt(B,A,data'))';
+data = single(filtfilt(B,A,double(data)'))';
 data = reshape(data,D);
 end

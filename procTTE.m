@@ -9,6 +9,7 @@ if ~exist('fidx','var')
 end
 
 cd(DataDir)
+
 %% Input Parameters
 options.dataflow = struct(...
     'ARFI',1 ...
@@ -19,29 +20,31 @@ options.dataflow = struct(...
 
 options.dispEst = struct(...
     'method','Loupas'...
-    ,'ref_type','common' ...   % independent/common/progressive - indicates whether "no push" and "push" data sets will have independent references or a common reference, or use a moving reference
+    ,'ref_type','independent' ...   % independent/common/progressive - indicates whether "no push" and "push" data sets will have independent references or a common reference, or use a moving reference
     ,'ref_idx',[] ...
     ,'noverlap',5 ...        % DO NOT CHANGE - number of time steps that are common between "no push" and "push" data sets (determined in sequenceParams file)
     ,'interpFactor',5 ...
     ,'kernelLength',4 ...
-    ,'ccmode', 0 ...
+    ,'ccmode', 1 ...
     );
 
-% options.motionFilter = struct(...
-%     'enable',1 ...
-%     ,'method','Polynomial' ...
-%     ,'order',1 ...
-%     ,'timeRange',[-inf -0.32 6.72 6.88] ...
-%     ,'passBand',[20 2000] ...
-%     );
+options.motionFilter = struct(...
+    'enable',1 ...
+    ,'method','BPF' ... % Polynomial/BPF/Both
+    ... % Parameters for Polynomial filter
+    ,'order',1 ... 
+    ,'timeRange',[-inf -0.32] ... 
+    ... % Parameters for Bandpass filter
+    ,'passBand',[50 2000] ...
+    );
 
 %% Extract timeStamp
 if ispc
     addpath C:\users\vrk4\Documents\GitHub\SC2000\arfiProcCode\
-    addpath(genpath('C:\Users\vrk4\Tools\TransthoracicStudy\procCode')) % Change to GitHub path when it is ready
-else
+    addpath(genpath('C:\users\vrk4\Documents\GitHub\TTEProcCode')) 
+elseif isunix
     addpath /emfd/vrk4/GitHub/SC2000/arfiProcCode
-    % include GitHub path when it is ready
+    addpath(genpath('/emfd/vrk4/GitHub/TTEProcCode'))
 end
 
 list = dir('arfi_par_*'); % get timeStamp based on existance of ARFI par files
@@ -59,26 +62,49 @@ else
     timeStamp = list(options.dataflow.setID).name(end-17:end-4);
 end
 
+% Read in ARFI par file
+arfi_par = load(sprintf('arfi_par_%s.mat',timeStamp));
+
+
 fprintf('Loading data with timeStamp = %s\n', timeStamp);
 %% Extract B-mode Data
 fprintf(1,'Extracting B-mode Data...\n');
 [bdata,bmodeSave] = extractBmode(timeStamp);
+
+% dof = 7.22*1.540/arfi_par.pushFreq*(arfi_par.pushFnum)^2;
+% edge = (arfi_par.pushFocalDepth + [-dof/2 dof/2])/10;
+% 
+% for i=1:81;
+%     imagesc(bdata.blat,bdata.bax,bdata.bimg(:,:,i));
+%     colormap(gray);axis image;
+%     title(i);
+%     hold on
+%     plot(bdata.blat,edge(1)*ones(length(bdata.blat)),'b')
+%     plot(bdata.blat,edge(2)*ones(length(bdata.blat)),'b')
+%     plot(-0.5*ones(length(bdata.bax)),bdata.bax,'g')
+%     plot(0.5*ones(length(bdata.bax)),bdata.bax,'g')
+%     hold off
+%     pause
+% end
+% 
+% keyboard
 
 %% Extract ARFI/SWEI Data
 fprintf(1,'Extracting ARFI/SWEI Data...\n');
 if options.dataflow.ARFI
     [arfidata,arfiSave,options] = extractMmode(timeStamp,options,'ARFI');
     arfi_par = load(sprintf('arfi_par_%s.mat',timeStamp));
-%     if options.motionFilter.enable
-%         [arfidata] = motionFilter(arfidata,options);
-%     end
+    if options.motionFilter.enable
+        [arfidata] = motionFilter(arfidata,options,arfi_par);
+    end
 end
+
 if options.dataflow.SWEI
     [sweidata,sweiSave,options] = extractMmode(timeStamp,options,'SWEI');
     swei_par = load(sprintf('swei_par_%s.mat',timeStamp));
-%     if options.motionFilter.enable
-%         [sweidata] = motionFilter(sweidata,options);
-%     end
+    if options.motionFilter.enable
+        [sweidata] = motionFilter(sweidata,options,swei_par);
+    end
 end
 
 % Save time stamped results file
