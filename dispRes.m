@@ -63,7 +63,7 @@ for i=1:size(bdata.bimg,3)
     imagesc(bdata.blat*10,bdata.bax*10,bdata.bimg(:,:,i));
     xlabel('Lateral (mm)')
     ylabel('Axial (mm)')
-    title(sprintf('HQ B-Mode: Frame %d (t = %1.1f s)\n',i,bdata.t(i)))
+    title(sprintf('B-Mode: Frame %d (t = %1.1f s)\n',i,bdata.t(i)))
     colormap(gray)
     axis image
     hold on
