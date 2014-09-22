@@ -110,10 +110,11 @@ if options.dataflow.realTime
         title(sprintf('HQ B-Mode: Frame %d (t = %1.1f s)\n',i,bdata.t(i)))
         pause(0.025)
     end
+
 %%
     disp_gate_mm = 2.5;
-    offset = 0;
-    arange = [0 50];
+    offset = -5;
+    arange = [0 20];
     
     edge = (arfi_par.pushFocalDepth + offset + [-disp_gate_mm/2 disp_gate_mm/2]);
     edge_idx = [find(arfidata.axial>edge(1),1) find(arfidata.axial>edge(2),1)];
