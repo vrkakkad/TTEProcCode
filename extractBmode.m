@@ -52,6 +52,7 @@ else
     bimg = fread(bmodeFid, inf, '*uint8');
     fclose(bmodeFid);
     bimg = reshape(bimg, bmodePar.SamplesPerLine, bmodePar.LinesPerSlice, []);
+    bimg = bimg(:,:,1:end-1);
     bax = (0:bmodePar.SamplesPerLine-1)./bmodePar.NumSamplesPerMm;
     blat = linspace(bmodePar.FirstLinePos, bmodePar.LastLinePos, bmodePar.LinesPerSlice);
         
@@ -63,5 +64,7 @@ else
     end
     
     bdata.t = 0:1/bmodePar.ChunkRateHz:(size(bimg,3)-1)/bmodePar.ChunkRateHz;
+    bdata.bax = 10*bdata.bax;
+    bdata.blat = 10*bdata.blat;
     bmodeSave = 1;
 end

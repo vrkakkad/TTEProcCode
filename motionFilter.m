@@ -29,18 +29,6 @@ else
 end
 
 
-if (strcmpi(options.motionFilter.method,'BPF') || strcmpi(options.motionFilter.method,'Both'))
-    
-    fprintf(1,'Executing Bandpass filter: Passband set to [%d %d] Hz\n',options.motionFilter.passBand)
-    
-    if strcmpi(options.dispEst.ref_type,'independent')
-        [datastruct.trackTime, datastruct.disp_off] = filtArfiData_TTE(datastruct.axial,datastruct.trackTime,datastruct.disp_off,nref,par,options.motionFilter.passBand);
-        [datastruct.trackTime, datastruct.disp_on] = filtArfiData_TTE(datastruct.axial,datastruct.trackTime,datastruct.disp_on,nref,par,options.motionFilter.passBand);
-    else
-        [datastruct.trackTime, datastruct.disp] = filtArfiData_TTE(datastruct.axial,datastruct.trackTime,datastruct.disp,nref,par,options.motionFilter.passBand);
-    end
-end
-
 if (strcmpi(options.motionFilter.method,'Polynomial') || strcmpi(options.motionFilter.method,'Both'))
     
     fprintf(1,'Executing Polynomial filter: TimeRange set to [%s] us\n',num2str(options.motionFilter.timeRange,'%2.2f '))
@@ -59,28 +47,45 @@ if (strcmpi(options.motionFilter.method,'Polynomial') || strcmpi(options.motionF
     else
         [datastruct.disp datastruct.motion] = linearmotionfilter(datastruct.disp,datastruct.trackTime,find(tmask),options.motionFilter.order);
     end
+
+%% interpPushReverb takes care of this part now; not required here
+
+%     % Cubic interpolate push and reverb if only using Polynomial filter
+%     % (BPF takes care of this as well)
+%     if ~strcmpi(options.motionFilter.method,'Both')
+%         if options.dispEst.ref_idx == -1
+%             tidx1 = [nref+[-1 0] nref+npush+[3:4]];
+%             tidx2 = [nref+[1:npush+2]];
+%         else
+%             tidx1 = [nref+[-1 0] nref+npush+[3:4]];
+%             tidx2 = [nref+[1:npush+2]];
+%         end
+%         
+%         if strcmpi(options.dispEst.ref_type,'independent')
+%             [residtmp motion1] = linearmotionfilter(datastruct.disp_on,datastruct.trackTime,tidx1,3);
+%             datastruct.disp_on(:,:,tidx2) = motion1(:,:,tidx2);
+%         else
+%             [residtmp motion1] = linearmotionfilter(datastruct.disp,datastruct.trackTime,tidx1,3);
+%             datastruct.disp(:,:,tidx2) = motion1(:,:,tidx2);
+%         end
+%         clear residtmp motion1;
+%     end
+end
+
+
+if (strcmpi(options.motionFilter.method,'BPF') || strcmpi(options.motionFilter.method,'Both'))
     
-    % Cubic interpolate push and reverb if only using Polynomial filter
-    % (BPF takes care of this as well)
-    if ~strcmpi(options.motionFilter.method,'Both')
-        if options.dispEst.ref_idx == -1
-            tidx1 = [nref+[-1 0] nref+npush+[3:4]];
-            tidx2 = [nref+[1:npush+2]];
-        else
-            tidx1 = [nref+[-1 0] nref+npush+[2:3]];
-            tidx2 = [nref+[1:npush+1]];
-        end
-        
-        if strcmpi(options.dispEst.ref_type,'independent')
-            [residtmp motion1] = linearmotionfilter(datastruct.disp_on,datastruct.trackTime,tidx1,3);
-            datastruct.disp_on(:,:,tidx2) = motion1(:,:,tidx2);
-        else
-            [residtmp motion1] = linearmotionfilter(datastruct.disp,datastruct.trackTime,tidx1,3);
-            datastruct.disp(:,:,tidx2) = motion1(:,:,tidx2);
-        end
-        clear residtmp motion1;
+    fprintf(1,'Executing Bandpass filter: Passband set to [%d %d] Hz\n',options.motionFilter.passBand)
+    
+    if strcmpi(options.dispEst.ref_type,'independent')
+        [datastruct.trackTime, datastruct.disp_off] = filtArfiData_TTE(datastruct.axial,datastruct.trackTime,datastruct.disp_off,nref,par,options.motionFilter.passBand);
+        [datastruct.trackTime, datastruct.disp_on] = filtArfiData_TTE(datastruct.axial,datastruct.trackTime,datastruct.disp_on,nref,par,options.motionFilter.passBand);
+    else
+        [datastruct.trackTime, datastruct.disp] = filtArfiData_TTE(datastruct.axial,datastruct.trackTime,datastruct.disp,nref,par,options.motionFilter.passBand);
     end
 end
+
+
 
 if reshape_flag
     if strcmpi(options.dispEst.ref_type,'independent')

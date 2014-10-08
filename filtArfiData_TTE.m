@@ -26,12 +26,12 @@ if nargin<7,axFiltKer = 0.5;end % axial filter length (mm)
 % end
 
 ts = true(1,size(arfidata,3))';
-ts(nref+(1:par.npush+2)) = false;
+% ts(nref+(1:par.npush+2)) = false;
 
 % Set up filtering parameters
 dt = median(diff(t));
 if (t(end)-t(end-1))>10*dt,ts(end)=0;end
-fprintf(1, 'Removing time step:\t%d\n', find(ts==0));
+% fprintf(1, 'Removing time step:\t%d\n', find(ts==0));
 t = t(ts);t = round(t*1e4)/1e4; % numerical tolerance issues
 tn = t(1):dt:t(end);tn = round(tn*1e4)/1e4; % numerical tolerance issues
 fs = 1./dt*1e3;
@@ -65,7 +65,8 @@ function data = temporalFilter(arfidata, t, tn, B, A)
 % interpolate and filter
 D = size(arfidata);
 arfidata = reshape(arfidata, [], D(end));
-data = interp1(t(:), arfidata', tn(:), 'spline')';
+data = arfidata;
+% data = interp1(t(:), arfidata', tn(:), 'spline')';
 D(end) = length(tn);
 data = single(filtfilt(B,A,double(data)'))';
 data = reshape(data,D);

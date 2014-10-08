@@ -37,6 +37,7 @@ else
     
     par.ref_type = options.dispEst.ref_type;
     par.ref_idx = options.dispEst.ref_idx;
+    par.nreverb = options.dispEst.nreverb;
     
 % Carried over from procArfi but not necessary for TTE M-mode ARFI/SWEI data    
 %     % Confirm location of push frame in case of DMA-SWIF Buffer Event
@@ -92,6 +93,10 @@ else
     N = size(I,1)*par.interpFactor;
     axial = (0:N-1)*(par.c/1e3)/(2*par.fs*par.interpFactor);
     
+    % Insert Raw pre-umsampled IQ Data into datastruct (used for tracing borders)
+    datastruct.IQ = single(complex(I,Q));
+    datastruct.IQaxial = single(axial(1:par.interpFactor:end));
+    
     % find center frequency (double frequency for harmonic data)
     if par.isHarmonic
         par.fc = par.trackParams.fc*1e6*2; % Hz
@@ -100,26 +105,35 @@ else
     end
     par.lambda = par.c / par.fc * 1e3; % mm
     
+    % calculate depth gate over which to compute displacements
+    dof = 7.22*1.540/par.pushFreq*(par.pushFnum)^2;
+    start_depth = par.pushFocalDepth - (1/2)*dof;
+    end_depth = par.pushFocalDepth + (1/2)*dof;
+    if start_depth<axial(1);start_depth = axial(1);end
+    if end_depth>axial(end);end_depth = axial(end-1);end
+   
     % Compute displacements using the last reference and then reorder the data
     if strcmpi(options.dispEst.ref_type,'independent')
-        fprintf(1,'Computing displacements: Anchored (independent ref) at Frame %d (nref = %d)\n',par.ref_idx,options.dispEst.noverlap)
+        fprintf(1,'Computing displacements: Anchored (independent ref) at Frame %d (nref = %d)\nDepth Gate = %2.2f - %2.2f mm\n',par.ref_idx,options.dispEst.noverlap,start_depth,end_depth)
     elseif strcmpi(options.dispEst.ref_type,'common')
-        fprintf(1,'Computing displacements: Anchored (common ref) at Frame %d (nref = %d)\n',par.ref_idx,par.nref)
+        fprintf(1,'Computing displacements: Anchored (common ref) at Frame %d (nref = %d)\nDepth Gate = %2.2f - %2.2f mm\n',par.ref_idx,par.nref,start_depth,end_depth)
     elseif par.ref_idx == -1
-        fprintf(1,'Computing displacements: Progressive\n') 
+        fprintf(1,'Computing displacements: Progressive Depth Gate = %2.2f - %2.2f mm\n',start_depth,end_depth) 
     end
     
     if strcmpi(options.dispEst.method,'Loupas')
         if strcmpi(options.dispEst.ref_type,'independent')
-            [dispout_off, I_off, Q_off] = runLoupas(I_off, Q_off, par.interpFactor, par.kernelLength, axial, par);
+            [dispout_off, I_off, Q_off] = runLoupas_gated(I_off, Q_off, par.interpFactor, par.kernelLength, axial, par, start_depth, end_depth);
             dispout_off = single(dispout_off);
-            [dispout_on, I_on, Q_on] = runLoupas(I_on, Q_on, par.interpFactor, par.kernelLength, axial, par);
+            [dispout_on, I_on, Q_on] = runLoupas_gated(I_on, Q_on, par.interpFactor, par.kernelLength, axial, par, start_depth, end_depth);
             dispout_on = single(dispout_on);
             temp = size(dispout_on,1);
-        else 
-            [dispout_all, I_all, Q_all] = runLoupas(I, Q, par.interpFactor, par.kernelLength, axial, par);
+        elseif (strcmpi(options.dispEst.ref_type,'common') || strcmpi(options.dispEst.ref_type,'progressive'))
+            [dispout_all, I_all, Q_all] = runLoupas_gated(I, Q, par.interpFactor, par.kernelLength, axial, par, start_depth, end_depth);
             dispout_all = single(dispout_all);
             temp = size(dispout_all,1);
+        else
+            error('Reference Type not recognized or not supported')
         end
     elseif strcmpi(optiosn.dispEst.method,'Pesavento')
         error('Coming soon...')
@@ -132,15 +146,17 @@ else
         fs = par.fs*1e6*par.interpFactor;
         fc = par.fc; % Hz
         if strcmpi(options.dispEst.ref_type,'independent')
-            ccout_off = single(abs(computeCC(complex(I_off,Q_off),round(par.kernelLength*fs/fc),par.ref_idx))); %% Need to update computeCC for progressive estimation
-            ccout_on = single(abs(computeCC(complex(I_on,Q_on),round(par.kernelLength*fs/fc),par.ref_idx))); %% Need to update computeCC for progressive estimation
+            ccout_off = single(abs(computeCC(complex(I_off,Q_off),round(par.kernelLength*fs/fc)))); 
+            ccout_on = single(abs(computeCC(complex(I_on,Q_on),round(par.kernelLength*fs/fc)))); 
+        elseif (strcmpi(options.dispEst.ref_type,'common') || strcmpi(options.dispEst.ref_type,'progressive'))
+            ccout_all = single(abs(computeCC(complex(I_all,Q_all),round(par.kernelLength*fs/fc)))); 
         else
-            ccout_all = single(abs(computeCC(complex(I_all,Q_all),round(par.kernelLength*fs/fc),par.ref_idx))); %% Need to update computeCC for progressive estimation
+            error('Reference Type not recognized or not supported')
         end
     end
     
     % Remove extra axial samples
-    axial = axial(1:temp);
+    axial = start_depth + axial(1:temp);
     axial = axial + par.kernelLength * par.lambda / 2; % shift axial vector based on 50% of tracking kernel
     datastruct.axial = single(axial);
     
@@ -149,18 +165,20 @@ else
     if strcmpi(options.dispEst.ref_type,'independent');
         datastruct.disp_off = dispout_off;
         datastruct.disp_on = dispout_on;
-        datastruct.IQ_off = single(complex(I_off(1:temp,:,:),Q_off(1:temp,:,:)));
-        datastruct.IQ_on = single(complex(I_on(1:temp,:,:),Q_on(1:temp,:,:)));
+%         datastruct.IQ_off = single(complex(I_off(1:temp,:,:),Q_off(1:temp,:,:)));
+%         datastruct.IQ_on = single(complex(I_on(1:temp,:,:),Q_on(1:temp,:,:)));
         if options.dispEst.ccmode
             datastruct.ccout_off = ccout_off;
             datastruct.ccout_on = ccout_on;
         end
-    else (strcmpi(options.dispEst.ref_type,'common') || strcmpi(options.dispEst.ref_type,'progressive'));
+    elseif (strcmpi(options.dispEst.ref_type,'common') || strcmpi(options.dispEst.ref_type,'progressive'));
         datastruct.disp = dispout_all;
-        datastruct.IQ = single(complex(I_all(1:temp,:,:),Q_all(1:temp,:,:)));
+%         datastruct.IQ = single(complex(I_all(1:temp,:,:),Q_all(1:temp,:,:)));
         if options.dispEst.ccmode
             datastruct.ccout = ccout_all;
         end
+    else
+        error('Reference Type not recognized or not supported')
     end
 
     % Generate time vector
