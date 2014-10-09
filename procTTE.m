@@ -1,5 +1,7 @@
 function procTTE(DataDir,fidx,options)
 
+close all
+
 if ~exist('DataDir','var')
     DataDir = pwd;
 end
@@ -12,7 +14,7 @@ if ~exist('options','var')
     options.dataflow = struct(...
         'display',1 ...
         ,'ARFI',1 ...
-        ,'SWEI',1 ...
+        ,'SWEI',0 ...
         ,'setID',fidx ...
         ,'saveRes',0 ...
         );
@@ -47,12 +49,17 @@ elseif options.dataflow.setID == -1
 else
     timeStamp = list(options.dataflow.setID).name(end-17:end-4);
 end
-fprintf('Loading data with timeStamp = %s (Set # %d)\n', timeStamp,size(list,1));
+
+if fidx==-1
+    fprintf('Loading data with timeStamp = %s (Set # %d of %d)\n', timeStamp,size(list,1),size(list,1));
+else
+    fprintf('Loading data with timeStamp = %s (Set # %d of %d)\n', timeStamp,fidx,size(list,1));
+end
 
 % Extract ECG/Trigger Data
 if exist(strcat('ECG_data_',timeStamp,'.mat'),'file')
     fprintf(1,'Loading ECG/Trigger Data...\n');
-    ecgdata = extractECG(timeStamp,1);
+    ecgdata = extractECG(timeStamp,0);
 else
     ecgdata = [];
 end

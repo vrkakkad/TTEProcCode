@@ -13,7 +13,11 @@ edge_idx = [find(arfidata.axial>edge2(1),1,'first') find(arfidata.axial<edge2(2)
 
 % Display HQ Bmode Frames
 figure
+if isunix
+set(gcf,'Position',[1201 386 1920 1070])
+elseif ispc
 set(gcf,'units','normalized','outerposition',[0 0 1 1])
+end
 for i=1:size(bdata.bimg,3);
     subplot('Position',[0.1 0.6 0.3 0.3])
     imagesc(bdata.blat,bdata.bax,bdata.bimg(:,:,i));
@@ -56,7 +60,9 @@ if options.motionFilter.enable
 else
     imagesc(arfidata.acqTime,arfidata.trackTime,gate_avg,options.display.disprange)
 end
-% xlabel('Acquisition Time (s)')
+if isempty(ecgdata)
+xlabel('Acquisition Time (s)')
+end
 ylabel('Track Time (ms)')
 title(sprintf('ARFI Displacement Profiles:\nDepth Gate = %2.2f - %2.2f mm\nHarmonic Tracking = %d',edge2(1),edge2(2),par.isHarmonic))
 grid on
@@ -76,7 +82,7 @@ if ~isempty(ecgdata)
     plot(ecgdata.arfi(:,1),ecgdata.arfi(:,2),'Linewidth',2);
     hold on
     plot(arfidata.acqTime,samples,'kx','MarkerSize',8)
-    pt = plot(arfidata.acqTime(1),samples(1),'ro','Parent',h1,'Markersize',10);
+    pt = plot(arfidata.acqTime(1),samples(1),'ro','Parent',h1,'Markersize',10,'Markerfacecolor','r');
     hold off
     grid on
     title('ECG Trace')
@@ -110,10 +116,40 @@ for i=1:size(gate_avg,2)
         grid on
     end
     if ~isempty(ecgdata)
-        pt = plot(arfidata.acqTime(i),samples(i),'ro','Parent',h1,'Markersize',10);
+        pt = plot(arfidata.acqTime(i),samples(i),'ro','Parent',h1,'Markersize',10,'Markerfacecolor','r');
     end
-    pause
+    pause(0.1)
 end
+
+if options.motionFilter.enable
+    if strcmpi(options.display.t_disp,'max')
+        [disp idx] = max(gate_avg_mf);
+    else
+        idx = find(arfidata.trackTime>options.display.t_disp,1)*ones(1,size(gate_avg,2));
+        disp = gate_avg_mf(idx(1),:);
+    end
+end
+
+% temp = colormap(jet);
+% temp = interp1([1:64],temp,linspace(1,64,length(arfidata.trackTime)));
+
+% pause
+% subplot('Position',[0.5 0.4 0.4 0.2])
+% plot(arfidata.acqTime,disp,'*-','Linewidth',2)
+% grid on
+% ylim([0 50])
+% ylabel('Displacement (\mum)')
+% if strcmpi(options.display.t_disp,'max')
+%     title('Max Displacement vs. Acquisition Time')
+% else
+%     title(sprintf('Displacement at t=%1.2f ms vs. Acquisition Time',options.display.t_disp))
+% end
+
+
+% for i=1:size(gate_avg,2)
+%     stem(arfidata.acqTime(i),disp(i),'o','markersize',10,'markerfacecolor',temp(idx(i),:))
+%     hold on
+% end
 
 % figure;errorbar(mean(gate_avg'), std(gate_avg'));grid on
 

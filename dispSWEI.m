@@ -13,7 +13,11 @@ edge_idx = [find(sweidata.axial>edge2(1),1,'first') find(sweidata.axial<edge2(2)
 
 % Display HQ Bmode Frames
 figure
+if isunix
+set(gcf,'Position',[1201 386 1920 1070])
+elseif ispc
 set(gcf,'units','normalized','outerposition',[0 0 1 1])
+end
 for i=1:size(bdata.bimg,3);
     subplot('Position',[0.1 0.6 0.3 0.3])
     imagesc(bdata.blat,bdata.bax,bdata.bimg(:,:,i));
@@ -85,25 +89,51 @@ if options.display.calcSWS
     
     sws1 = zeros(1,size(p1,3));
     sws2 = zeros(1,size(p1,3));
-    for i=1:size(p1,3)
-        tic
-        temp = CalcSWSfromLatsums(p1(:,:,i),l,t_int,10,1,8,0);
-        sws1(i) = temp.speed;
-        temp = CalcSWSfromLatsums(flipud(p2(:,:,i)),l,t_int,10,1,8,0);
-        sws2(i) = temp.speed;
-        toc
+    
+    max_vel = 10;
+    lat_min = 2;
+    lat_max = 8;
+    
+    if ispc
+        for i=1:size(p1,3)
+            tic
+            temp = CalcSWSfromLatsums(p1(:,:,i),l,t_int,max_vel,lat_min,lat_max,0);
+            sws1(i) = temp.speed;
+            temp = CalcSWSfromLatsums(flipud(p2(:,:,i)),l,t_int,max_vel,lat_min,lat_max,0);
+            sws2(i) = temp.speed;
+            toc
+        end
     end
+    
+    if isunix
+        matlabpool open
+        parfor i=1:size(p1,3)
+            tic
+            temp = CalcSWSfromLatsums(p1(:,:,i),l,t_int,max_vel,lat_min,lat_max,0);
+            sws1(i) = temp.speed;
+            temp = CalcSWSfromLatsums(flipud(p2(:,:,i)),l,t_int,max_vel,lat_min,lat_max,0);
+            sws2(i) = temp.speed;
+            toc
+        end
+        matlabpool close
+    end
+        
     
     sws = mean([sws1;sws2]);
     
     h0 = subplot('Position',[0.5 0.4 0.4 0.2]);
-    plot(sweidata.acqTime,sws,'*--')
+    plot(sweidata.acqTime,sws,'b*-','Linewidth',2)
     hold on
-    pt1 = plot(sweidata.acqTime(1),sws(1),'ro','Parent',h0,'Markersize',10);
+    plot(sweidata.acqTime,sws1,'c.--')
+    plot(sweidata.acqTime,sws2,'m.--')
+    pt1 = plot(sweidata.acqTime(1),sws(1),'ro','Parent',h0,'Markersize',10,'Markerfacecolor','r');
     hold off
     grid on
     ylabel('SWS (m/s)')
-    ylim([0 10])
+    if isempty(ecgdata)
+    xlabel('Acquisition Time (s)')
+    end
+    ylim([0 12])
     title('Estimated Shear Wave Speed')
     hold(h0)
 end
@@ -123,7 +153,7 @@ if ~isempty(ecgdata)
     plot(ecgdata.swei(:,1),ecgdata.swei(:,2),'Linewidth',2);
     hold on
     plot(sweidata.acqTime,samples,'kx','MarkerSize',8)
-    pt2 = plot(sweidata.acqTime(1),samples(1),'ro','Parent',h1,'Markersize',10);
+    pt2 = plot(sweidata.acqTime(1),samples(1),'ro','Parent',h1,'Markersize',10,'Markerfacecolor','r');
     hold off
     grid on
     title('ECG Trace')
@@ -204,10 +234,10 @@ elseif strcmpi(options.display.sw_display,'vel')
         %             pause(0.001)
         %         end
         if options.display.calcSWS
-            pt1 = plot(sweidata.acqTime(i),sws(i),'ro','Parent',h0,'Markersize',10);
+            pt1 = plot(sweidata.acqTime(i),sws(i),'ro','Parent',h0,'Markersize',10,'Markerfacecolor','r');
         end
         if ~isempty(ecgdata)
-            pt2 = plot(sweidata.acqTime(i),samples(i),'ro','Parent',h1,'Markersize',10);
+            pt2 = plot(sweidata.acqTime(i),samples(i),'ro','Parent',h1,'Markersize',10,'Markerfacecolor','r');
         end
         pause
     end
