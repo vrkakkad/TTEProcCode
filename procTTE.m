@@ -15,18 +15,20 @@ if ~exist('options','var')
         'display',1 ...
         ,'ARFI',1 ...
         ,'SWEI',0 ...
+        ,'oneSided',1 ...
         ,'setID',fidx ...
         ,'saveRes',0 ...
         );
     options.dispEst = struct(...
         'method','Loupas'...
-        ,'ref_type','progressive' ...   % independent/common/progressive - indicates whether "no push" and "push" data sets will have independent references or a common reference, or use a moving reference
+        ,'ref_type','Progressive' ...   % independent/anchored/progressive - indicates whether "no push" and "push" data sets will have independent references or a common reference, or use a moving reference
         ,'ref_idx',[] ...
         ,'noverlap',5 ...        % DO NOT CHANGE - number of time steps that are common between "no push" and "push" data sets (determined in sequenceParams file)
         ,'nreverb',2 ...         % Not having the correct nreverb could mess up displacements when using progressive ref_type
         ,'interpFactor',5 ...
         ,'kernelLength',4 ...
-        ,'ccmode', 0 ...
+        ,'searchRegion',4 ...
+        ,'ccmode',1 ...
         );
 end
 % Extract timeStamp
@@ -59,7 +61,9 @@ end
 % Extract ECG/Trigger Data
 if exist(strcat('ECG_data_',timeStamp,'.mat'),'file')
     fprintf(1,'Loading ECG/Trigger Data...\n');
-    ecgdata = extractECG(timeStamp,0);
+    ecgdata = extractECG(timeStamp,1);
+    pause
+    close(gcf)
 else
     ecgdata = [];
 end
@@ -85,24 +89,17 @@ else
     swei_par = [];
 end
 
-%%
+% Save time stamped results file
+if options.dataflow.saveRes
+    tic
+    resfile = ['res_' timeStamp '.mat'];
+    save(resfile,'bdata','ecgdata','arfidata','sweidata','options','-v7.3');
+    fprintf(1,'Save Time = %2.2fs\n',toc)
+end
+
+%% Display
 if options.dataflow.display
 dispTTE(ecgdata,bdata,arfidata,arfi_par,sweidata,swei_par,options);
 end
 %%
-keyboard
-%% Save time stamped results file
-if options.dataflow.saveRes
-    tic
-    resfile = ['res_' timeStamp '.mat'];
-    if (options.dataflow.ARFI && options.dataflow.SWEI)
-        save(resfile,'bdata','arfidata','sweidata','options','-v7.3');
-    elseif (options.dataflow.ARFI && ~options.dataflow.SWEI)
-        save(resfile,'bdata','arfidata','options','-v7.3');
-    elseif (~options.dataflow.ARFI && options.dataflow.SWEI)
-        save(resfile,'bdata','sweidata','options','-v7.3');
-    else
-        save(resfile,'bdata','options','-v7.3');
-    end
-    fprintf(1,'Save Time = %2.2fs\n',toc)
-end
+% keyboard

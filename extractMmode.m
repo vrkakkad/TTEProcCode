@@ -29,7 +29,7 @@ else
     
     if (strcmpi(options.dispEst.ref_type,'independent') && isempty(options.dispEst.ref_idx))
         options.dispEst.ref_idx = options.dispEst.noverlap;
-    elseif (strcmpi(options.dispEst.ref_type,'common') && isempty(options.dispEst.ref_idx))
+    elseif (strcmpi(options.dispEst.ref_type,'anchored') && isempty(options.dispEst.ref_idx))
         options.dispEst.ref_idx = par.nref;
     elseif (strcmpi(options.dispEst.ref_type,'progressive') && isempty(options.dispEst.ref_idx))
         options.dispEst.ref_idx = -1;
@@ -74,11 +74,14 @@ else
     end
     
     % Pull out only central Rx line in case of ARFI
-    if (strcmpi(datatype,'arfi') && par.nBeams>1)
+    if (strcmpi(datatype,'arfi') && par.nBeams>1 && ~options.dataflow.oneSided)
         I = I(:,ceil(par.nBeams/2):par.nBeams:end,:);
         Q = Q(:,ceil(par.nBeams/2):par.nBeams:end,:);
+    elseif (strcmpi(datatype,'arfi') && par.nBeams>1 && options.dataflow.oneSided)
+        I = I(:,1:par.nBeams:end,:);
+        Q = Q(:,1:par.nBeams:end,:);
     end
-        
+    
     if strcmpi(options.dispEst.ref_type,'independent')
         % Split IQ Data into "no push" and "push" data sets so that they have the same number of temporal samples
         % In this implementation, both sets are intended to have par.nref time points
@@ -93,9 +96,15 @@ else
     N = size(I,1)*par.interpFactor;
     axial = (0:N-1)*(par.c/1e3)/(2*par.fs*par.interpFactor);
     
-    % Insert Raw pre-umsampled IQ Data into datastruct (used for tracing borders)
-    datastruct.IQ = single(complex(I,Q));
-    datastruct.IQaxial = single(axial(1:par.interpFactor:end));
+    % Insert up-sampled Raw IQ Data into datastruct (used for tracing borders)
+    D = size(I);
+    D(1) = D(1).*par.interpFactor;
+    [Iup, Qup] = computeUpsampledIQdata(I,Q,par.interpFactor);
+    Iup = reshape(Iup, D);
+    Qup = reshape(Qup, D);
+    datastruct.IQ = single(complex(Iup,Qup));
+%     datastruct.IQaxial = single(axial(1:par.interpFactor:end));
+    datastruct.IQaxial = axial;
     
     % find center frequency (double frequency for harmonic data)
     if par.isHarmonic
@@ -115,7 +124,7 @@ else
     % Compute displacements using the last reference and then reorder the data
     if strcmpi(options.dispEst.ref_type,'independent')
         fprintf(1,'Computing displacements: Anchored (independent ref) at Frame %d (nref = %d)\nDepth Gate = %2.2f - %2.2f mm\n',par.ref_idx,options.dispEst.noverlap,start_depth,end_depth)
-    elseif strcmpi(options.dispEst.ref_type,'common')
+    elseif strcmpi(options.dispEst.ref_type,'anchored')
         fprintf(1,'Computing displacements: Anchored (common ref) at Frame %d (nref = %d)\nDepth Gate = %2.2f - %2.2f mm\n',par.ref_idx,par.nref,start_depth,end_depth)
     elseif par.ref_idx == -1
         fprintf(1,'Computing displacements: Progressive Depth Gate = %2.2f - %2.2f mm\n',start_depth,end_depth) 
@@ -128,16 +137,20 @@ else
             [dispout_on, I_on, Q_on] = runLoupas_gated(I_on, Q_on, par.interpFactor, par.kernelLength, axial, par, start_depth, end_depth);
             dispout_on = single(dispout_on);
             temp = size(dispout_on,1);
-        elseif (strcmpi(options.dispEst.ref_type,'common') || strcmpi(options.dispEst.ref_type,'progressive'))
+        elseif (strcmpi(options.dispEst.ref_type,'anchored') || strcmpi(options.dispEst.ref_type,'progressive'))
             [dispout_all, I_all, Q_all] = runLoupas_gated(I, Q, par.interpFactor, par.kernelLength, axial, par, start_depth, end_depth);
             dispout_all = single(dispout_all);
             temp = size(dispout_all,1);
         else
             error('Reference Type not recognized or not supported')
         end
-    elseif strcmpi(optiosn.dispEst.method,'Pesavento')
-        error('Coming soon...')
-    else
+    elseif strcmpi(options.dispEst.method,'Pesavento')
+        if (strcmpi(options.dispEst.ref_type,'anchored'))
+            [dispout_all I_all Q_all cc] = runPesavento_gated(I, Q, par.interpFactor, par.kernelLength*2, options.dispEst.searchRegion, axial, par, start_depth, end_depth);
+        elseif (strcmpi(options.dispEst.ref_type,'progressive'))
+%             [dispout_all I_all Q_all cc] = runPesaventoFlux(I,Q,res.t,options.displacement.interpFactor,options.displacement.kernelLength*2,options.displacement.searchRegion,axial0, par);
+        end
+        else
         error('Displacement estimation method not recognized or not supported')
     end
     
@@ -148,8 +161,9 @@ else
         if strcmpi(options.dispEst.ref_type,'independent')
             ccout_off = single(abs(computeCC(complex(I_off,Q_off),round(par.kernelLength*fs/fc)))); 
             ccout_on = single(abs(computeCC(complex(I_on,Q_on),round(par.kernelLength*fs/fc)))); 
-        elseif (strcmpi(options.dispEst.ref_type,'common') || strcmpi(options.dispEst.ref_type,'progressive'))
-            ccout_all = single(abs(computeCC(complex(I_all,Q_all),round(par.kernelLength*fs/fc)))); 
+        elseif (strcmpi(options.dispEst.ref_type,'anchored') || strcmpi(options.dispEst.ref_type,'progressive'))
+            ccout_all = single(abs(computeCC(complex(I_all,Q_all),round(par.kernelLength*fs/fc),par.ref_idx)));
+            ccout_all(:,:,par.nref+1:par.nref+par.npush+par.nreverb) = nan;
         else
             error('Reference Type not recognized or not supported')
         end
@@ -171,7 +185,7 @@ else
             datastruct.ccout_off = ccout_off;
             datastruct.ccout_on = ccout_on;
         end
-    elseif (strcmpi(options.dispEst.ref_type,'common') || strcmpi(options.dispEst.ref_type,'progressive'));
+    elseif (strcmpi(options.dispEst.ref_type,'anchored') || strcmpi(options.dispEst.ref_type,'progressive'));
         datastruct.disp = dispout_all;
 %         datastruct.IQ = single(complex(I_all(1:temp,:,:),Q_all(1:temp,:,:)));
         if options.dispEst.ccmode
@@ -197,14 +211,20 @@ else
     % Generate acqTime vector
     datastruct.acqTime = single(0:1/pushPRF:(par.numBeamGroups*par.numAcq-1)/par.pushPRF);
     
-    % Generate lateral vector for SWEI tracking beams
+    % Generate lateral and axial vectors for SWEI tracking beams
     if strcmpi(datatype,'arfi')
         datastruct.lat = single(zeros(length(axial),par.nBeams));
     elseif strcmpi(datatype,'swei')
         % Generates lateral extent as a funtion of depth based on the calculated angles for Rx beams
         temp = genLatMatrix(par);
-        temp = temp(ceil(par.numBeamGroups*par.nBeams/2)-floor(par.nBeams/2):ceil(par.numBeamGroups*par.nBeams/2)+floor(par.nBeams/2)); % Pulling out the rx angles corresponding to the center beam
-        datastruct.lat = single((abs(par.trackParams.txXyzGridParams.apexMm(3)) + axial)'*tand(temp'));
+        temp = temp(ceil(par.numBeamGroups*par.nBeams/2)-floor(par.nBeams/2):ceil(par.numBeamGroups*par.nBeams/2)+floor(par.nBeams/2)); % Pulling out the rx angles corresponding to the center beamgroup
+        if options.dataflow.oneSided
+            temp = temp(2:end);
+        end
+        [TH R] =  meshgrid(temp,datastruct.axial);
+        datastruct.lat = R.*sind(TH) - repmat(par.trackParams.txXyzGridParams.apexMm(3).*cosd(temp'),size(R,1),1).*sind(TH);
+        datastruct.ax = R.*cosd(TH);
+%         datastruct.lat = single((abs(par.trackParams.txXyzGridParams.apexMm(3)) + axial)'*tand(temp'));
     end
     
     % Reshape sweidata

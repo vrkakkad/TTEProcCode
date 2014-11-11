@@ -1,4 +1,4 @@
-function datastruct = motionFilter(datastruct,options,par)
+function datastruct = motionFilter(datastruct,options,par,type)
 
 % Reshape Displacements from 4D back to 3D in case of SWEI data
 if strcmpi(options.dispEst.ref_type,'independent')
@@ -31,10 +31,17 @@ end
 
 if (strcmpi(options.motionFilter.method,'Polynomial') || strcmpi(options.motionFilter.method,'Both'))
     
-    fprintf(1,'Executing Polynomial filter: TimeRange set to [%s] us\n',num2str(options.motionFilter.timeRange,'%2.2f '))
+    if strcmpi(type,'pre')
+        fprintf(1,'Executing Polynomial filter: TimeRange set to [%s] us\n',num2str(options.motionFilter.timeRange_pre,'%2.2f '))
+        timeRange = options.motionFilter.timeRange_pre;
+    elseif strcmpi(type,'push')
+        fprintf(1,'Executing Polynomial filter: TimeRange set to [%s] us\n',num2str(options.motionFilter.timeRange_push,'%2.2f '))
+        timeRange = options.motionFilter.timeRange_push;
+    else
+        error('Wrong type into motionFilter')
+    end
     
     tmask = false(size(datastruct.trackTime));
-    timeRange = options.motionFilter.timeRange;
     for i = 1:2:length(timeRange)
         tmask(datastruct.trackTime>timeRange(i) & datastruct.trackTime<timeRange(i+1)) = true;
     end
@@ -73,15 +80,15 @@ if (strcmpi(options.motionFilter.method,'Polynomial') || strcmpi(options.motionF
 end
 
 
-if (strcmpi(options.motionFilter.method,'BPF') || strcmpi(options.motionFilter.method,'Both'))
+if (strcmpi(options.motionFilter.method,'LPF') || strcmpi(options.motionFilter.method,'Both'))
     
-    fprintf(1,'Executing Bandpass filter: Passband set to [%d %d] Hz\n',options.motionFilter.passBand)
+    fprintf(1,'Executing Lowpass filter: Cutoff set to %d Hz\n',options.motionFilter.LPF_Cutoff)
     
     if strcmpi(options.dispEst.ref_type,'independent')
-        [datastruct.trackTime, datastruct.disp_off] = filtArfiData_TTE(datastruct.axial,datastruct.trackTime,datastruct.disp_off,nref,par,options.motionFilter.passBand);
-        [datastruct.trackTime, datastruct.disp_on] = filtArfiData_TTE(datastruct.axial,datastruct.trackTime,datastruct.disp_on,nref,par,options.motionFilter.passBand);
+        [datastruct.trackTime, datastruct.disp_off] = filtArfiData_TTE(datastruct.axial,datastruct.trackTime,datastruct.disp_off,nref,par,options.motionFilter.LPF_Cutoff);
+        [datastruct.trackTime, datastruct.disp_on] = filtArfiData_TTE(datastruct.axial,datastruct.trackTime,datastruct.disp_on,nref,par,options.motionFilter.LPF_Cutoff);
     else
-        [datastruct.trackTime, datastruct.disp] = filtArfiData_TTE(datastruct.axial,datastruct.trackTime,datastruct.disp,nref,par,options.motionFilter.passBand);
+        [datastruct.trackTime, datastruct.disp] = filtArfiData_TTE(datastruct.axial,datastruct.trackTime,datastruct.disp,nref,par,options.motionFilter.LPF_Cutoff);
     end
 end
 

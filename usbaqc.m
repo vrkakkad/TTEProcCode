@@ -35,7 +35,7 @@ function [time,data] = usbaqc(varargin)
         params.ScannerPin        = 13;
         params.ECGPin            = 6;
         params.Rate              = 125000;
-        params.DurationInSeconds = 15;
+        params.DurationInSeconds = 18;
     else
         % Else there are an even number of pairs
         % Loop through name-value pairs, and set params

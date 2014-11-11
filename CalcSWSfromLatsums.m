@@ -17,7 +17,12 @@ function out=CalcSWSfromLatsums(plane,latmm,tms,maxspeed,minlat,maxlat,fignum)
 
     [itstart,itend] = FindGlobalPeak(latsums);
 
-    if fignum
+   
+
+    slope = (tms(itend)-tms(itstart))/(ilatend-ilatstart);
+    speed = mean(diff(latmm))/slope;
+    
+     if fignum
         figure(fignum)
         clf
         subplot(1,2,1)
@@ -25,8 +30,10 @@ function out=CalcSWSfromLatsums(plane,latmm,tms,maxspeed,minlat,maxlat,fignum)
         hold on
         plot([tms(itstart) tms(itend)],[latmm(ilatstart) latmm(ilatend)],'w')
         hold off
+        title(speed)
         xlabel('time (ms)');
         ylabel('lateral position (mm)');
+%         xlim([0 5])
         colorbar
 
         subplot(1,2,2)
@@ -38,9 +45,6 @@ function out=CalcSWSfromLatsums(plane,latmm,tms,maxspeed,minlat,maxlat,fignum)
         xlabel('end time (ms)')
         ylabel('start time (ms)')
     end
-
-    slope = (tms(itend)-tms(itstart))/(ilatend-ilatstart);
-    speed = mean(diff(latmm))/slope;
 
     avg = nanmean(latsums(:));
     stdd = nanstd(latsums(:));

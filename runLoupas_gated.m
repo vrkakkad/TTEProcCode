@@ -111,7 +111,7 @@ end
 if par.ref_idx ==-1
     u(:,:,par.nref-1:-1:1) = -cumsum(u_inc(:,:,par.nref-1:-1:1),3);
     % u(:,:,par.nref) retains zeros
-    % u(:,:,par.nref+(1:skip)) = 1e-6*50*ones(size(u,1),size(u,2),skip); % junk frames (push/reverb)
+    u(:,:,par.nref+(1:skip)) = 1e-6*(-20 + 40*rand(size(u,1),size(u,2),skip)); % junk frames (push/reverb - would need to get interpolated through)
     u(:,:,par.nref+skip+1:end) = cumsum(u_inc(:,:,par.nref:end),3);   
 end
     u = -u.*1e6;

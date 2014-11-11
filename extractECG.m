@@ -11,37 +11,44 @@ t_high = find(high==1)/fs;
 t_gap = diff(t_high);
 
 % Calculate Start and Stop Indices for HQ B-mode Grab
-ind_t_gap1 = find(t_gap>0.25,1,'first');
+ind_t_gap1 = find(t_gap>0.05,1,'first');
 val_t_gap1 = t_gap(ind_t_gap1);
-ind_b_start = ind_high(ind_t_gap1) + val_t_gap1*fs;
+ind_b_start = round(ind_high(ind_t_gap1) + val_t_gap1*fs);
 temp = find(t_gap>0.25,2,'first');
-ind_b_stop = ind_high(temp(end));
+ind_b_stop = round(ind_high(temp(end)));
 
 % Calculate Start and Stop Indices for ARFI Grab
-temp = find(t_gap>0.75,3,'last');
+temp = find(t_gap>0.05,4,'last'); %4
 ind_t_gap2 = temp(1);
 val_t_gap2 = t_gap(ind_t_gap2);
-ind_a_start = ind_high(ind_t_gap2) + val_t_gap2*fs;
+ind_a_start = round(ind_high(ind_t_gap2) + val_t_gap2*fs);
 ind_t_gap3 = temp(2);
 val_t_gap3 = t_gap(ind_t_gap3);
-ind_a_stop = ind_high(ind_t_gap3);
+ind_a_stop = round(ind_high(ind_t_gap3));
 
 % Calculate Start and Stop Indices for SWEI Grab
-ind_s_start = ind_high(ind_t_gap3) + val_t_gap3*fs;
-ind_t_gap4 = temp(3);
+ind_s_start = round(ind_high(ind_t_gap3) + val_t_gap3*fs);
+ind_t_gap4 = temp(3); %3
 val_t_gap4 = t_gap(ind_t_gap4);
-ind_s_stop = ind_high(ind_t_gap4);
+ind_s_stop = round(ind_high(ind_t_gap4));
 
 if plot_flag
     figure
-    plot(ecgdata(:,2))
+    subplot(211)
+    stem(t_gap)
+    grid on
+    title(timeStamp)
+    subplot(212)
+    plot(ecgdata(:,1),ecgdata(:,2))
     hold on
-    plot(ind_b_start,1.5,'ro')
-    plot(ind_b_stop,1.5,'ro')
-    plot(ind_a_start,1.5,'ro')
-    plot(ind_a_stop,1.5,'ro')
-    plot(ind_s_start,1.5,'ro')
-    plot(ind_s_stop,1.5,'ro')
+    plot(ecgdata(ind_b_start,1),1.5,'o','markerfacecolor','r')
+    plot(ecgdata(ind_b_stop,1),1.5,'o','markerfacecolor','r')
+    plot(ecgdata(ind_a_start,1),1.5,'o','markerfacecolor','y')
+    plot(ecgdata(ind_a_stop,1),1.5,'o','markerfacecolor','y')
+    plot(ecgdata(ind_s_start,1),1.5,'o','markerfacecolor','g')
+    plot(ecgdata(ind_s_stop,1),1.5,'o','markerfacecolor','g')
+    xlabel('Acq Time (s)')
+    grid on
 end
 
 % Insert ECG segments into structure
