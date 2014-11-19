@@ -1,156 +1,287 @@
 function dispSWEI(ecgdata,bdata,sweidata,sweidata_mf_pre,sweidata_mf_push,options,par)
 
-% Not currently compatible with ref_type = 'independent'
+[ndepth nlat nacqT ntrackT] = size(sweidata.disp);
 
-dof = 7.22*1.540/par.pushFreq*(par.pushFnum)^2;
-edge = (par.pushFocalDepth + [-dof/2 dof/2]);
+edge = [sweidata.axial(1) sweidata.axial(end)];
 
-edge2 = (par.pushFocalDepth + options.display.gateOffset + [-options.display.gateWidth/2 options.display.gateWidth/2]);
-if (edge2(1)<sweidata.axial(1) || edge2(2)>sweidata.axial(end))
-    warning('Depth gate requested (%2.2f-%2.2f mm) falls outside the range over which displacements are computed (%2.2f-%2.2f mm)',edge2(1),edge2(2),sweidata.axial(1),sweidata.axial(end));
+if options.display.axial_scan
+    ngates = round(2*(edge(2)-edge(1))/options.display.gateWidth);
+    offsets = linspace(edge(1)+options.display.gateWidth/2,edge(2)-options.display.gateWidth/2,ngates) - par.pushFocalDepth;
+    options.display.gateOffset = offsets(1);
 end
-edge_idx = [find(sweidata.axial>edge2(1),1,'first') find(sweidata.axial<edge2(2),1,'last')];
+
+gate = (par.pushFocalDepth + options.display.gateOffset + [-options.display.gateWidth/2 options.display.gateWidth/2]);
+if (gate(1)<sweidata.axial(1) || gate(2)>sweidata.axial(end))
+    warning('Depth gate requested (%2.2f-%2.2f mm) falls outside the range over which displacements are computed (%2.2f-%2.2f mm)',gate(1),gate(2),sweidata.axial(1),sweidata.axial(end));
+end
+gate_idx = [find(sweidata.axial>gate(1),1,'first') find(sweidata.axial<gate(2),1,'last')];
 
 % Display HQ Bmode Frames
-figure
+f1 = figure;
 if isunix
-    set(gcf,'Position',[1201 386 1920 1070])
+    set(gcf,'Position',[203 286 1196 1170])
 elseif ispc
     set(gcf,'units','normalized','outerposition',[0 0 1 1])
 end
 for i=1:size(bdata.bimg,3);
-    subplot('Position',[0.1 0.6 0.3 0.3])
+    p1 = subplot('Position',[0.1 0.6 0.3 0.3]);
     imagesc(bdata.blat,bdata.bax,bdata.bimg(:,:,i));
     colormap(gray);axis image; freezeColors;
     title(i);
     hold on
     rectangle('Position',[-7 edge(1) 14 edge(2)-edge(1)],'EdgeColor','b','Linewidth',2)
-    rectangle('Position',[3 edge2(1) 3 edge2(2)-edge2(1)],'EdgeColor','r','Linewidth',2)
+    r1 = rectangle('Position',[min(sweidata.lat(:)) gate(1) (max(sweidata.lat(:))-min(sweidata.lat(:))) gate(2)-gate(1)],'EdgeColor','g','Linewidth',2,'Parent',p1);
     hold off
-    xlabel('Lateral (mm)','fontsize',10','fontweight','bold')
-    ylabel('Axial (mm)','fontsize',10','fontweight','bold')
-    title(sprintf('HQ B-Mode: Frame %d (t = %1.1f s)\n',i,bdata.t(i)),'fontsize',10','fontweight','bold')
+    xlabel('Lateral (mm)','fontsize',16','fontweight','bold')
+    ylabel('Axial (mm)','fontsize',16','fontweight','bold')
+    title(sprintf('HQ B-Mode: Frame %d (t = %1.1f s)\n',i,bdata.t(i)),'fontsize',16','fontweight','bold')
+    xlim([-25 25]);ylim(edge + [-15 15])
     pause(0.025)
     
-    if i==1
+    if i==size(bdata.bimg,3)
         % Display M-mode Data
-        subplot('Position',[0.5 0.7 0.4 0.2])
-        imagesc(sweidata.acqTime,sweidata.IQaxial,abs(db(sweidata.IQ(:,ceil(par.nBeams/2):par.nBeams:end,1))))
+        p2 = axes('Position',[0.45 0.3 0.52 1]);
+        frame = sweidata.IQ(:,:,1);
+        imagesc(linspace(0,range(sweidata.lat(:))*nacqT,size(sweidata.IQ,2)),sweidata.IQaxial,db(frame/max(frame(:))),options.display.IQrange)
         hold on
-        plot(sweidata.acqTime,edge2(1)*ones(length(sweidata.acqTime)),'r','Linewidth',2)
-        plot(sweidata.acqTime,edge2(2)*ones(length(sweidata.acqTime)),'r','Linewidth',2)
-        plot(sweidata.acqTime,sweidata.axial(1)*ones(length(sweidata.acqTime)),'b','Linewidth',2)
-        plot(sweidata.acqTime,sweidata.axial(end)*ones(length(sweidata.acqTime)),'b','Linewidth',2)
+        plot(linspace(0,range(sweidata.lat(:))*nacqT,size(sweidata.IQ,2)),sweidata.axial(1)*ones(size(sweidata.IQ,2)),'b','Linewidth',2)
+        plot(linspace(0,range(sweidata.lat(:))*nacqT,size(sweidata.IQ,2)),sweidata.axial(end)*ones(size(sweidata.IQ,2)),'b','Linewidth',2)
+        plot(linspace(0,range(sweidata.lat(:))*nacqT,size(sweidata.IQ,2)),gate(1)*ones(size(sweidata.IQ,2)),'g','Linewidth',2);
+        plot(linspace(0,range(sweidata.lat(:))*nacqT,size(sweidata.IQ,2)),gate(2)*ones(size(sweidata.IQ,2)),'g','Linewidth',2);
         hold off
-        ylabel('Axial (mm)','fontsize',10','fontweight','bold')
-        title('M-Mode Frames','fontsize',10','fontweight','bold')
+        axis image
+        ylabel('Axial (mm)','fontsize',16','fontweight','bold')
+        set(gca,'xTickLabel',[])
+        title(sprintf('M-Mode Frames\n Harmonic Tracking = %d',par.isHarmonic),'fontsize',16,'fontweight','bold')
+        ylim(edge + [-15 15])
         colormap(gray); freezeColors;
         %         grid on
     end
 end
 
+if ~isempty(ecgdata)
+    samples = zeros(1,size(sweidata.disp,3));
+    for i=1:size(sweidata.disp,3)
+        samples(i) = ecgdata.swei(find(ecgdata.swei(:,1)>sweidata.acqTime(i),1,'first'),2);
+    end
+    ecgdata.swei(:,2) = ecgdata.swei(:,2)/max(ecgdata.swei(:,2));
+    
+    if options.calcSWS.enable
+        h1 = axes('Position',[0.5 0.1 0.4 0.2]);
+    else
+        h1 = axes('Position',[0.5 0.25 0.4 0.2]);
+    end
+    plot(ecgdata.swei(:,1),ecgdata.swei(:,2),'Linewidth',2);
+    hold on
+    plot(sweidata.acqTime,samples,'kx','MarkerSize',8)
+    pt = plot(sweidata.acqTime(1),samples(1),'ro','Parent',h1,'Markersize',10,'Markerfacecolor','r');
+    hold off
+    grid on
+    title('ECG Trace','fontsize',16','fontweight','bold')
+    xlabel('Acquisition Time (s)','fontsize',16','fontweight','bold')
+    axis tight
+    hold(h1)
+end
+
 % Compute velocity data from displacement data
-[vel_temp, sweidata.t_vel] = differentiateDisplacements(permute(sweidata.disp(:,2:end,:,:),[1 2 4 3]),sweidata.trackTime,options.motionFilter.LPF_Cutoff);
+[vel_temp, sweidata.t_vel] = differentiateDisplacements(permute(sweidata.disp,[1 2 4 3]),sweidata.trackTime,options.motionFilter.LPF_Cutoff);
 sweidata.vel = permute(vel_temp,[1 2 4 3]);
 sweidata = interpPushReverb(sweidata,options,par,'nan'); % NaN out push and reverb frames
 clear vel_temp
 if options.motionFilter.enable
-    [vel_temp, sweidata_mf_pre.t_vel] = differentiateDisplacements(permute(sweidata_mf_pre.disp(:,2:end,:,:),[1 2 4 3]),sweidata_mf_pre.trackTime,options.motionFilter.LPF_Cutoff);
+    [vel_temp, sweidata_mf_pre.t_vel] = differentiateDisplacements(permute(sweidata_mf_pre.disp,[1 2 4 3]),sweidata_mf_pre.trackTime,options.motionFilter.LPF_Cutoff);
     sweidata_mf_pre.vel = permute(vel_temp,[1 2 4 3]);
     sweidata_mf_pre = interpPushReverb(sweidata_mf_pre,options,par,'nan'); % NaN out push and reverb frames
     clear vel_temp
-    [vel_temp, sweidata_mf_push.t_vel] = differentiateDisplacements(permute(sweidata_mf_push.disp(:,2:end,:,:),[1 2 4 3]),sweidata_mf_push.trackTime,options.motionFilter.LPF_Cutoff);
+    [vel_temp, sweidata_mf_push.t_vel] = differentiateDisplacements(permute(sweidata_mf_push.disp,[1 2 4 3]),sweidata_mf_push.trackTime,options.motionFilter.LPF_Cutoff);
     sweidata_mf_push.vel = permute(vel_temp,[1 2 4 3]);
     sweidata_mf_push = interpPushReverb(sweidata_mf_push,options,par,'nan'); % NaN out push and reverb frames
     clear vel_temp
 end
 
+% Coorelation mask filter
+if options.display.cc_filt
+    mask = sweidata.cc>options.display.cc_thresh;
+    sweidata.disp(mask==0) = nan;
+    sweidata.vel(mask(:,:,:,1:end-1)==0) = nan;
+    if options.motionFilter.enable
+        sweidata_mf_pre.disp(mask==0) = nan;
+        sweidata_mf_pre.vel(mask(:,:,:,1:end-1)==0) = nan;
+        sweidata_mf_push.disp(mask==0) = nan;
+        sweidata_mf_push.vel(mask(:,:,:,1:end-1)==0) = nan;
+    end
+end
+
+%% Plot Axial Scan Data
+if options.display.axial_scan
+    for i=1:ngates
+        set(0,'currentFigure',f1)
+        options.display.gateOffset = offsets(i);
+        gate = (par.pushFocalDepth + options.display.gateOffset + [-options.display.gateWidth/2 options.display.gateWidth/2]);
+        if (gate(1)<sweidata.axial(1) || gate(2)>sweidata.axial(end))
+            warning('Depth gate requested (%2.2f-%2.2f mm) falls outside the range over which displacements are computed (%2.2f-%2.2f mm)',gate(1),gate(2),sweidata.axial(1),sweidata.axial(end));
+        end
+        gate_idx = [find(sweidata.axial>gate(1),1,'first') find(sweidata.axial<gate(2),1,'last')];
+        
+        delete(r1)
+        r1 = rectangle('Position',[min(sweidata.lat(:)) gate(1) (max(sweidata.lat(:))-min(sweidata.lat(:))) gate(2)-gate(1)],'EdgeColor','g','Linewidth',2,'Parent',p1);
+        title(sprintf('HQ B-Mode: Frame %d (t = %1.1f s)\n Gate Offset = %2.2f mm ',i,bdata.t(i),offsets(i)),'fontsize',16','fontweight','bold','Parent',p1)
+        p2 = axes('Position',[0.45 0.3 0.52 1]);
+        frame = sweidata.IQ(:,:,1);
+        imagesc(linspace(0,range(sweidata.lat(:))*nacqT,size(sweidata.IQ,2)),sweidata.IQaxial,db(frame/max(frame(:))),options.display.IQrange)
+        hold on
+        plot(linspace(0,range(sweidata.lat(:))*nacqT,size(sweidata.IQ,2)),sweidata.axial(1)*ones(size(sweidata.IQ,2)),'b','Linewidth',2)
+        plot(linspace(0,range(sweidata.lat(:))*nacqT,size(sweidata.IQ,2)),sweidata.axial(end)*ones(size(sweidata.IQ,2)),'b','Linewidth',2)
+        plot(linspace(0,range(sweidata.lat(:))*nacqT,size(sweidata.IQ,2)),gate(1)*ones(size(sweidata.IQ,2)),'g','Linewidth',2);
+        plot(linspace(0,range(sweidata.lat(:))*nacqT,size(sweidata.IQ,2)),gate(2)*ones(size(sweidata.IQ,2)),'g','Linewidth',2);
+        hold off
+        axis image
+        ylabel('Axial (mm)','fontsize',16','fontweight','bold')
+        set(gca,'xTickLabel',[])
+        title(sprintf('M-Mode Frames\n Harmonic Tracking = %d',par.isHarmonic),'fontsize',16,'fontweight','bold')
+        ylim(edge + [-15 15])
+        
+        % Compute Axially Averaged Data
+        switch options.display.sw_display
+            case 'disp'
+                raw = squeeze(nanmean(sweidata.disp(gate_idx(1):gate_idx(2),2:end,:,:),1));
+                raw = permute(raw, [1 3 2]);
+                if options.motionFilter.enable
+                    mf = squeeze(nanmean(sweidata_mf_push.disp(gate_idx(1):gate_idx(2),2:end,:,:),1));
+                    mf = permute(mf, [1 3 2]);
+                else
+                    mf = nan(size(raw));
+                end
+                rng = options.display.disprange;
+            case 'vel'
+                raw = squeeze(nanmean(sweidata.vel(gate_idx(1):gate_idx(2),:,:,:),1));
+                raw = permute(raw, [1 3 2]);
+                if options.motionFilter.enable
+                    mf = squeeze(nanmean(sweidata_mf_push.vel(gate_idx(1):gate_idx(2),:,:,:),1));
+                    mf = permute(mf, [1 3 2]);
+                else
+                    mf = nan(size(raw));
+                end
+                rng = options.display.velrange;
+        end
+        
+        figure(101)
+        if isunix
+            set(gcf,'Position',[1200 409 950 1050])
+        elseif ispc
+            set(gcf,'units','normalized','outerposition',[0 0 1 1])
+        end
+        for i=1:nacqT
+            subplot(nacqT/5,5,i)
+            p = imagesc(sweidata.trackTime(par.nref+1:end),sweidata.lat(round(mean(gate_idx)),:),raw(:,(par.nref+1:end),i),rng);
+            set(p,'alphadata',~isnan(raw(:,(par.nref+1:end),i)))
+            set(gca,'color',[0.4 0.4 0.4])
+            title(sweidata.acqTime(i),'fontsize',16','fontweight','bold')
+            xlim([0 3])
+        end
+        
+        figure(102)
+        if isunix
+            set(gcf,'Position',[2150 409 950 1050])
+        elseif ispc
+            set(gcf,'units','normalized','outerposition',[0 0 1 1])
+        end
+        for i=1:nacqT
+            subplot(nacqT/5,5,i)
+            p = imagesc(sweidata.trackTime(par.nref+1:end),sweidata.lat(round(mean(gate_idx)),:),mf(:,(par.nref+1:end),i),rng);
+            set(p,'alphadata',~isnan(raw(:,(par.nref+1:end),i)))
+            set(gca,'color',[0.4 0.4 0.4])
+            title(sweidata.acqTime(i),'fontsize',16','fontweight','bold')
+            xlim([0 3])
+        end
+        pause
+    end
+    close 101 102
+    clc
+end
+
 %% Plot Shear Wave Movies
 if options.display.sw_movie
-    figure
+    figure(101)
     if isunix
-        set(gcf,'Position',[1002 16 423 526])
+        set(gcf,'Position',[896 286 303 1179])
     elseif ispc
         set(gcf,'Position',[1002 16 423 526])
     end
-    for i=1:size(sweidata.vel,3)
-        for j=par.nref:size(sweidata.vel,4)
+    for i=1:nacqT
+        for j=par.nref+1:ntrackT-1
             subplot(221)
-            imagesc(sweidata.lat(end,:),sweidata.axial,sweidata.disp(:,2:end,i,j),options.display.disprange);axis image; title(['Disp: Push #',num2str(i)])
+            p1 = imagesc(sweidata.lat(end,:),sweidata.axial,sweidata.disp(:,2:end,i,j),options.display.disprange);axis image; title(['Disp: Push #',num2str(i)]);
+            set(p1,'alphadata',~isnan(sweidata.disp(:,2:end,i,j)))
+            set(gca,'color',[0.4 0.4 0.4])
             xlabel('Lateral (mm)')
             ylabel('Axial (mm)')
             if options.motionFilter.enable
                 subplot(222)
-                imagesc(sweidata.lat(end,:),sweidata.axial,sweidata_mf_push.disp(:,2:end,i,j),options.display.disprange);axis image; title(['Disp MF: Push #',num2str(i)])
+                p2 = imagesc(sweidata.lat(end,:),sweidata.axial,sweidata_mf_push.disp(:,2:end,i,j),options.display.disprange);axis image; title(['Disp MF: Push #',num2str(i)]);
+                set(p2,'alphadata',~isnan(sweidata_mf_push.disp(:,2:end,i,j)))
+                set(gca,'color',[0.4 0.4 0.4])
                 xlabel('Lateral (mm)')
                 ylabel('Axial (mm)')
             end
             
             subplot(223)
-            imagesc(sweidata.lat(end,:),sweidata.axial,sweidata.vel(:,:,i,j),options.display.velrange);axis image; title(['Vel: Push #',num2str(i)])
+            p3 = imagesc(sweidata.lat(end,:),sweidata.axial,sweidata.vel(:,2:end,i,j),options.display.velrange);axis image; title(['Vel: Push #',num2str(i)]);
+            set(p3,'alphadata',~isnan(sweidata.vel(:,2:end,i,j)))
+            set(gca,'color',[0.4 0.4 0.4])
             xlabel('Lateral (mm)')
             ylabel('Axial (mm)')
             if options.motionFilter.enable
                 subplot(224)
-                imagesc(sweidata.lat(end,:),sweidata.axial,sweidata_mf_push.vel(:,:,i,j),options.display.velrange);axis image; title(['Vel MF: Push #',num2str(i)])
+                p4 = imagesc(sweidata.lat(end,:),sweidata.axial,sweidata_mf_push.vel(:,2:end,i,j),options.display.velrange);axis image; title(['Vel MF: Push #',num2str(i)]);
+                set(p4,'alphadata',~isnan(sweidata_mf_push.vel(:,2:end,i,j)))
+                set(gca,'color',[0.4 0.4 0.4])
                 xlabel('Lateral (mm)')
                 ylabel('Axial (mm)')
             end
-            pause(0.001)
+            pause(0.01)
         end
-        pause(0.001)
+        pause(0.05)
     end
     close(gcf)
-%     return
 end
 
 %% Plot disp vs. time sw traces
 if options.display.dvt_plots
     line_idx = 1+ [1 7 13];
-    raw = squeeze(sweidata.disp(ceil(linspace(edge_idx(1),edge_idx(2),5)),line_idx,:,par.nref:end));
+    raw = squeeze(sweidata.disp(ceil(linspace(gate_idx(1),gate_idx(2),5)),line_idx,:,par.nref:end));
     if options.motionFilter.enable
-        mf = squeeze(sweidata_mf_push.disp(ceil(linspace(edge_idx(1),edge_idx(2),5)),line_idx,:,par.nref:end));
+        mf = squeeze(sweidata_mf_push.disp(ceil(linspace(gate_idx(1),gate_idx(2),5)),line_idx,:,par.nref:end));
     else
         mf = nan(size(raw));
     end
-    figure
-    for p = 1:size(raw,3)
-        a1 = subplot(121);hold on;grid on;title(['Raw: ',num2str(p)])
-        a2 = subplot(122);hold on;grid on;title(['MF: ',num2str(p)])
+    figure(101)
+    if isunix
+        set(gcf,'Position',[3 284 1196 574])
+    elseif ispc
+        set(gcf,'Position',[1002 16 423 526])
+    end
+    for p = 1:nacqT
+        a1 = subplot(121);hold on;grid on;title(['Raw: ',num2str(p)]);
+        set(a1,'yTickLabel',[])
+        a2 = subplot(122);hold on;grid on;title(['MF: ',num2str(p)]);
+        set(a2,'yTickLabel',[])
+        offset = options.display.disprange(2);
         for i=1:5
-            plot(sweidata.trackTime(par.nref:end),-10*(i-1) + squeeze(raw(i,:,p,:))','Parent',a1)
-            plot(sweidata.trackTime(par.nref:end),-10*(i-1) + squeeze(mf(i,:,p,:))','Parent',a2)
+            plot(sweidata.trackTime(par.nref:end),-offset*(i-1) + squeeze(raw(i,:,p,:))','-x','Parent',a1)
+            plot(sweidata.trackTime(par.nref:end),-offset*(i-1) + squeeze(mf(i,:,p,:))','-x','Parent',a2)
         end
+        set(gcf,'currentAxes',a1)
+        axis tight
+        set(gcf,'currentAxes',a2)
+        axis tight
         pause
         cla(a1);cla(a2);
     end
     close(gcf)
 end
 
-
-% Compute Axially Averaged Data
-switch options.display.sw_display
-    case 'disp'
-        raw = squeeze(mean(sweidata.disp(edge_idx(1):edge_idx(2),2:end,:,:),1));
-        raw = permute(raw, [1 3 2]);
-        if options.motionFilter.enable
-            mf = squeeze(mean(sweidata_mf_push.disp(edge_idx(1):edge_idx(2),2:end,:,:),1));
-            mf = permute(mf, [1 3 2]);
-        else
-            mf = nan(size(raw));
-        end
-        rng = options.display.disprange;
-    case 'vel'
-        raw = squeeze(mean(sweidata.vel(edge_idx(1):edge_idx(2),:,:,:),1));
-        raw = permute(raw, [1 3 2]);
-        if options.motionFilter.enable
-            mf = squeeze(mean(sweidata_mf_push.vel(edge_idx(1):edge_idx(2),:,:,:),1));
-            mf = permute(mf, [1 3 2]);
-        else
-            mf = nan(size(raw));
-        end
-        rng = options.display.velrange;
-end
+return
 
 % Calculate Shear Wave Speed
 if options.calcSWS.enable
@@ -217,51 +348,27 @@ if options.calcSWS.enable
     end
 end
 
-if ~isempty(ecgdata)
-    samples = zeros(1,size(sweidata.disp,3));
-    for i=1:size(sweidata.disp,3)
-        samples(i) = ecgdata.swei(find(ecgdata.swei(:,1)>sweidata.acqTime(i),1,'first'),2);
-    end
-    ecgdata.swei(:,2) = ecgdata.swei(:,2)/max(ecgdata.swei(:,2));
-    
-    if options.calcSWS.enable
-        h1 = subplot('Position',[0.5 0.1 0.4 0.2]);
-    else
-        h1 = subplot('Position',[0.5 0.25 0.4 0.2]);
-    end
-    plot(ecgdata.swei(:,1),ecgdata.swei(:,2),'Linewidth',2);
-    hold on
-    plot(sweidata.acqTime,samples,'kx','MarkerSize',8)
-    pt = plot(sweidata.acqTime(1),samples(1),'ro','Parent',h1,'Markersize',10,'Markerfacecolor','r');
-    hold off
-    grid on
-    title('ECG Trace','fontsize',10','fontweight','bold')
-    xlabel('Acquisition Time (s)','fontsize',10','fontweight','bold')
-    axis tight
-    hold(h1)
-end
-
 h2a = subplot('Position',[0.05 0.35 0.37 0.15]);
 h2b = subplot('Position',[0.05 0.1 0.37 0.15]);
 
-for rep =1:3
+for rep =1:1
 for i=1:size(sweidata.disp,3)
     if ~isempty(ecgdata)
         set(pt,'Visible','off')
     end
     colormap(hot)
     axes(h2a)
-    imagesc(sweidata.trackTime(par.nref+1:end),sweidata.lat(round(mean(edge_idx)),:),raw(:,par.nref+1:end,i),rng/3)
+    imagesc(sweidata.trackTime(par.nref+1:end),sweidata.lat(round(mean(gate_idx)),:),raw(:,par.nref+1:end,i),rng/3)
     xlabel('Track Time (ms)','fontsize',10','fontweight','bold')
     ylabel('Lateral (mm)','fontsize',10','fontweight','bold')
     grid on
     if strcmpi(options.display.sw_display,'disp')
-        title(sprintf('SWEI Profiles averaged over %2.2f - %2.2f mm\n Raw Displacements: Push # %d (t = %2.2fs)',edge2(1),edge2(2),i,sweidata.acqTime(i)),'fontsize',10','fontweight','bold')
+        title(sprintf('SWEI Profiles averaged over %2.2f - %2.2f mm\n Raw Displacements: Push # %d (t = %2.2fs)',gate(1),gate(2),i,sweidata.acqTime(i)),'fontsize',10','fontweight','bold')
     elseif strcmpi(options.display.sw_display,'vel')
-        title(sprintf('SWEI Profiles averaged over %2.2f - %2.2f mm\n Raw Velocities: Push # %d (t = %2.2fs)',edge2(1),edge2(2),i,sweidata.acqTime(i)),'fontsize',10','fontweight','bold')
+        title(sprintf('SWEI Profiles averaged over %2.2f - %2.2f mm\n Raw Velocities: Push # %d (t = %2.2fs)',gate(1),gate(2),i,sweidata.acqTime(i)),'fontsize',10','fontweight','bold')
     end
     axes(h2b)
-    imagesc(sweidata.trackTime(par.nref+1:end),sweidata.lat(round(mean(edge_idx)),:),mf(:,par.nref+1:end,i),rng/3)
+    imagesc(sweidata.trackTime(par.nref+1:end),sweidata.lat(round(mean(gate_idx)),:),mf(:,par.nref+1:end,i),rng/3)
     xlabel('Track Time (ms)','fontsize',10','fontweight','bold')
     ylabel('Lateral (mm)','fontsize',10','fontweight','bold')
     grid on

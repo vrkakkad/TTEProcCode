@@ -34,7 +34,7 @@ elseif (strcmpi(options.dispEst.ref_type,'anchored') || strcmpi(options.dispEst.
         [ax beam push tstep] = size(datastruct.disp);
         datastruct.disp = reshape(datastruct.disp,ax,beam*push,tstep);
         if isfield(datastruct,'vel')
-        datastruct.vel = reshape(datastruct.vel,ax,(beam-1)*push,tstep-1);
+        datastruct.vel = reshape(datastruct.vel,ax,beam*push,tstep-1);
         end
         reshape_flag = 1;
     else
@@ -63,7 +63,7 @@ elseif (strcmpi(options.dispEst.ref_type,'anchored') || strcmpi(options.dispEst.
     if reshape_flag
         datastruct.disp = reshape(datastruct.disp,ax,beam,push,tstep);
         if isfield(datastruct,'vel')
-        datastruct.vel = reshape(datastruct.vel,ax,beam-1,push,tstep-1);
+        datastruct.vel = reshape(datastruct.vel,ax,beam,push,tstep-1);
         end
     end
 else

@@ -1,12 +1,8 @@
 function dispARFI(ecgdata,bdata,arfidata,arfidata_mf_pre,arfidata_mf_push,options,par)
 
-% Not currently compatible with ref_type = 'independent'
-% figure;plot(ecgdata.bmode(:,2))
+[ndepth nacqT ntrackT] = size(arfidata.disp);
 
-dof = 7.22*1.540/par.pushFreq*(par.pushFnum)^2;
-edge = (par.pushFocalDepth + [-dof/2 dof/2]);
-idx_pre = find(arfidata.trackTime>options.display.t_disp_pre,1);
-idx_push = find(arfidata.trackTime>options.display.t_disp_push,1);
+edge = [arfidata.axial(1) arfidata.axial(end)];
 
 gate = (par.pushFocalDepth + options.display.gateOffset + [-options.display.gateWidth/2 options.display.gateWidth/2]);
 if (gate(1)<arfidata.axial(1) || gate(2)>arfidata.axial(end))
@@ -18,38 +14,41 @@ gate_idx = [find(arfidata.axial>gate(1),1,'first') find(arfidata.axial<gate(2),1
 % Display HQ Bmode Frames
 figure
 if isunix
-    set(gcf,'Position',[1201 386 1920 1070])
+    set(gcf,'Position',[203 286 1196 1170])
 elseif ispc
     set(gcf,'units','normalized','outerposition',[0 0 1 1])
 end
 
 for i=1:size(bdata.bimg,3);
-    subplot('Position',[0.1 0.6 0.3 0.3])
+    p1 = subplot('Position',[0.1 0.6 0.3 0.3]);
     imagesc(bdata.blat,bdata.bax,bdata.bimg(:,:,i));
     colormap(gray);axis image; freezeColors;
     title(i);
     hold on
     rectangle('Position',[-7 edge(1) 14 edge(2)-edge(1)],'EdgeColor','b','Linewidth',2)
-    rectangle('Position',[-2 gate(1) 4 gate(2)-gate(1)],'EdgeColor','r','Linewidth',2)
+    rectangle('Position',[-2 gate(1) 4 gate(2)-gate(1)],'EdgeColor','g','Linewidth',2)
     hold off
-    xlabel('Lateral (mm)','fontsize',10','fontweight','bold')
-    ylabel('Axial (mm)','fontsize',10','fontweight','bold')
-    title(sprintf('HQ B-Mode: Frame %d (t = %1.1f s)',i,bdata.t(i)),'fontsize',10','fontweight','bold')
-    xlim([-10 10]);ylim(edge + [-1 1])
+    xlabel('Lateral (mm)','fontsize',16,'fontweight','bold')
+    ylabel('Axial (mm)','fontsize',16,'fontweight','bold')
+    title(sprintf('HQ B-Mode: Frame %d (t = %1.1f s)',i,bdata.t(i)),'fontsize',16,'fontweight','bold')
+    xlim([-25 25]);ylim(edge + [-15 15])
     pause(0.025)
-    if i==1
+    if i==size(bdata.bimg,3)
         % Display M-mode IQ
-        subplot('Position',[0.5 0.7 0.4 0.2])
-        imagesc(arfidata.acqTime,arfidata.IQaxial,abs(db(arfidata.IQ(:,:,1))),options.display.IQrange)
+        p2 = axes('Position',[0.45 0.3 0.52 1]);
+        frame = arfidata.IQ(:,:,1);
+        imagesc(linspace(0,range(arfidata.lat(:))*nacqT,size(arfidata.IQ,2)),arfidata.IQaxial,db(frame/max(frame(:))),options.display.IQrange)
         hold on
-        plot(arfidata.acqTime,gate(1)*ones(length(arfidata.acqTime)),'r','Linewidth',2)
-        plot(arfidata.acqTime,gate(2)*ones(length(arfidata.acqTime)),'r','Linewidth',2)
-        plot(arfidata.acqTime,arfidata.axial(1)*ones(length(arfidata.acqTime)),'b','Linewidth',2)
-        plot(arfidata.acqTime,arfidata.axial(end)*ones(length(arfidata.acqTime)),'b','Linewidth',2)
+        plot(linspace(0,range(arfidata.lat(:))*nacqT,size(arfidata.IQ,2)),arfidata.axial(1)*ones(size(arfidata.IQ,2)),'b','Linewidth',2)
+        plot(linspace(0,range(arfidata.lat(:))*nacqT,size(arfidata.IQ,2)),arfidata.axial(end)*ones(size(arfidata.IQ,2)),'b','Linewidth',2)
+        plot(linspace(0,range(arfidata.lat(:))*nacqT,size(arfidata.IQ,2)),gate(1)*ones(size(arfidata.IQ,2)),'g','Linewidth',2)
+        plot(linspace(0,range(arfidata.lat(:))*nacqT,size(arfidata.IQ,2)),gate(2)*ones(size(arfidata.IQ,2)),'g','Linewidth',2)
         hold off
-        ylabel('Axial (mm)','fontsize',10','fontweight','bold')
-        title(sprintf('M-Mode Frames\n Harmonic Tracking = %d',par.isHarmonic),'fontsize',10','fontweight','bold')
-        ylim(edge + [-1 1])
+        axis image
+        ylabel('Axial (mm)','fontsize',16,'fontweight','bold')
+        set(gca,'xTickLabel',[])
+        title(sprintf('M-Mode Frames\n Harmonic Tracking = %d',par.isHarmonic),'fontsize',16,'fontweight','bold')
+        ylim(edge + [-15 15])
         colormap(gray); freezeColors;
         %         grid on
     end
@@ -64,188 +63,237 @@ end
 
 % Coorelation mask filter
 if options.display.cc_filt
-        mask = arfidata.ccout>options.display.cc_thresh;
-%         arfidata.disp = arfidata.disp.*mask;
-        if options.motionFilter.enable
-%             arfidata_mf_pre.disp = arfidata_mf_pre.disp.*mask;
-%             arfidata_mf_push.disp = arfidata_mf_push.disp.*mask;
-        end
+    mask = arfidata.cc>options.display.cc_thresh;
 end
 
 % Indices corresponding to median filter parameters
 nax = double(ceil(options.display.medfilt(1)/(arfidata.axial(2) - arfidata.axial(1))));
 nt = double(ceil(options.display.medfilt(2)/(arfidata.acqTime(2) - arfidata.acqTime(1))));
+cmap = colormap(hot);
+cmap(65,:) = [0.5 0.5 0.5];
 
 % Display M-mode ARFI
 if options.motionFilter.enable
-    pre = medfilt2(double(arfidata_mf_pre.disp(:,:,idx_pre)),[nax nt]);
-    push = medfilt2(double(arfidata_mf_push.disp(:,:,idx_push)),[nax nt]);
-    %     pre = medfilt2(double(arfidata_mf_pre.disp(gate_idx(1):gate_idx(2),:,idx_pre)),[nax nt]);
-    %     push = medfilt2(double(arfidata_mf_push.disp(gate_idx(1):gate_idx(2),:,idx_push)),[nax nt]);
-    [r1,c1] = find(mask(:,:,idx_pre)==0);%find(pre==0); 
-    [r2,c2] = find(mask(:,:,idx_push)==0);%find(push==0);
+    
+    if strcmpi(options.display.t_disp_pre,'max')
+        [pk idx] = max(arfidata_mf_pre.disp(:,:,1:par.nref),[],3);
+        idx_pre = round(median(idx)); % to get a single representative number through all depth
+        pre = medfilt2(double(pk),[nax nt]);
+        % figure out way to cc_filt these properly
+        clear pk idx
+    else
+        idx_pre = find(arfidata.trackTime>options.display.t_disp_pre,1);
+        pre = medfilt2(double(arfidata_mf_pre.disp(:,:,idx_pre)),[nax nt]);
+        if options.display.cc_filt; pre(mask(:,:,idx_pre)==0) = inf; end
+        idx_pre = repmat(idx_pre,[1 size(pre,2)]);
+    end
+    
+    if strcmpi(options.display.t_disp_push,'max')
+        [pk idx] = max(arfidata_mf_push.disp(:,:,par.nref:end),[],3);
+        idx_push = par.nref -1 + round(median(idx)); % to get a single representative number through all depth
+        push = medfilt2(double(pk),[nax nt]);
+        % figure out way to cc_filt these properly
+        clear pk idx
+    else
+        idx_push = find(arfidata.trackTime>options.display.t_disp_push,1);
+        push = medfilt2(double(arfidata_mf_push.disp(:,:,idx_push)),[nax nt]);
+        if options.display.cc_filt; push(mask(:,:,idx_push)==0) = inf; end
+        idx_push = repmat(idx_push,[1 size(push,2)]);
+    end
+    
     rng = options.display.disprange;
+    
     if options.display.normalize
         m1 = 1/range(pre(:)); b1 = 1 - max(pre(:))/range(pre(:));
         m2 = 1/range(push(:)); b2 = 1 - max(push(:))/range(push(:));
         pre = m1.*pre + b1; push = m2.*push + b2;
         rng = [0 1];
     end
-    im1 = subplot('Position',[0.5 0.53 0.4 0.1]);
+        
+    p3 = axes('Position',[0.5 0.53 0.4 0.1]);
     imagesc(arfidata.acqTime,arfidata.axial,pre,rng);
     hold on
-    plot(arfidata.acqTime(c1), arfidata.axial(r1), 'bx') ;
-    %     imagesc(arfidata.acqTime,arfidata.axial(gate_idx(1):gate_idx(2)),pre,rng);
-    cim1 = copyobj(im1,gcf);
-    set(cim1,'box','on','linewidth',3,'xcolor','y','ycolor','y','xticklabel',[],'yticklabel',[]);
-    %     set(cim1,'xgrid','on','ygrid','on')
-    ylabel('Axial (mm)','Parent',im1,'fontsize',10','fontweight','bold')
-    title(sprintf('ARFI Displacements over DOF at t = %2.2f ms (pre push)',arfidata.trackTime(idx_pre)),'parent',im1,'fontsize',10','fontweight','bold')
-    im2 = subplot('Position',[0.5 0.37 0.4 0.1]);
+    plot(arfidata.acqTime,gate(1)*ones(nacqT),'g','Linewidth',2)
+    plot(arfidata.acqTime,gate(2)*ones(nacqT),'g','Linewidth',2)
+    cp3 = copyobj(p3,gcf);
+    set(cp3,'box','on','linewidth',3,'xcolor','y','ycolor','y','xticklabel',[],'yticklabel',[]);
+    ylabel('Axial (mm)','Parent',p3,'fontsize',16,'fontweight','bold')
+    if strcmpi(options.display.t_disp_pre,'max')
+        title(sprintf('ARFI Displacements over DOF at t_m_a_x (pre push)'),'parent',p3,'fontsize',16,'fontweight','bold')
+    else
+        title(sprintf('ARFI Displacements over DOF at t = %2.2f ms (pre push)',arfidata.trackTime(idx_pre(i))),'parent',p3,'fontsize',16,'fontweight','bold')
+    end
+    p4 = axes('Position',[0.5 0.37 0.4 0.1]);
     imagesc(arfidata.acqTime,arfidata.axial,push,rng);
     hold on
-    plot(arfidata.acqTime(c2), arfidata.axial(r2), 'bx') ;
-%     imagesc(arfidata.acqTime,arfidata.axial(gate_idx(1):gate_idx(2)),push,rng);
-    cim2 = copyobj(im2,gcf);
-    set(cim2,'box','on','linewidth',3,'xcolor','g','ycolor','g','xticklabel',[],'yticklabel',[]);
-    %     set(cim1,'xgrid','on','ygrid','on')
-    hcb = colorbar;
-    set(hcb,'Position',[0.91 0.37 0.0187/2 0.26])
+    plot(arfidata.acqTime,gate(1)*ones(nacqT),'g','Linewidth',2)
+    plot(arfidata.acqTime,gate(2)*ones(nacqT),'g','Linewidth',2)
+    cp4 = copyobj(p4,gcf);
+    set(cp4,'box','on','linewidth',3,'xcolor','g','ycolor','g','xticklabel',[],'yticklabel',[]);
+    cb = colorbar;
+    set(cb,'Position',[0.91 0.37 0.0187/2 0.26])
     if options.display.normalize
-        ylabel(hcb,'Normalized Displacement','fontsize',10','fontweight','bold')
+        ylabel(cb,'Normalized Displacement','fontsize',16,'fontweight','bold')
     else
-        ylabel(hcb,'Displacement (\mum)','fontsize',10','fontweight','bold')
+        ylabel(cb,'Displacement (\mum)','fontsize',16,'fontweight','bold')
     end
-    ylabel('Axial (mm)','parent',im2,'fontsize',10','fontweight','bold')
-    title(sprintf('ARFI Displacements over DOF at t = %2.2f ms (at push)',arfidata.trackTime(idx_push)),'parent',im2,'fontsize',10','fontweight','bold')
-    colormap(hot)
+    ylabel('Axial (mm)','parent',p4,'fontsize',16,'fontweight','bold')
+    if strcmpi(options.display.t_disp_pre,'max')
+        title(sprintf('ARFI Displacements over DOF at t_m_a_x (at push)'),'parent',p4,'fontsize',16,'fontweight','bold')
+    else
+        title(sprintf('ARFI Displacements over DOF at t = %2.2f ms (at push)',arfidata.trackTime(idx_push(i))),'parent',p4,'fontsize',16,'fontweight','bold')
+    end
+    colormap(cmap)
+    set(cb,'yLim',[options.display.disprange]+[0 -1])    
 else
-    pre = medfilt2(double(arfidata.disp(:,:,idx_pre)),[nax nt]);
-    push = medfilt2(double(arfidata.disp(:,:,idx_push)),[nax nt]);
-%     pre = medfilt2(double(arfidata.disp(gate_idx(1):gate_idx(2),:,idx_pre)),[nax nt]);
-%     push = medfilt2(double(arfidata.disp(gate_idx(1):gate_idx(2),:,idx_push)),[nax nt]);
-    [r1,c1] = find(mask(:,:,idx_pre)==0);%find(pre==0); 
-    [r2,c2] = find(mask(:,:,idx_push)==0);%find(push==0);
+    
+    if strcmpi(options.display.t_disp_pre,'max')
+        [pk idx] = max(arfidata.disp(:,:,1:par.nref),[],3);
+        idx_pre = round(median(idx)); % to get a single representative number through all depth
+        pre = medfilt2(double(pk),[nax nt]);
+        % figure out way to cc_filt these properly
+        clear pk idx
+    else
+        idx_pre = find(arfidata.trackTime>options.display.t_disp_pre,1);
+        pre = medfilt2(double(arfidata.disp(:,:,idx_pre)),[nax nt]);
+        idx_pre = repmat(idx_pre,[1 size(pre,2)]);
+    end
+    
+    if strcmpi(options.display.t_disp_push,'max')
+        [pk idx] = max(arfidata.disp(:,:,par.nref:end),[],3);
+        idx_push = par.nref -1 + round(median(idx)); % to get a single representative number through all depth
+        push = medfilt2(double(pk),[nax nt]);
+        % figure out way to cc_filt these properly
+        clear pk idx
+    else
+        idx_push = find(arfidata.trackTime>options.display.t_disp_push,1);
+        push = medfilt2(double(arfidata.disp(:,:,idx_push)),[nax nt]);
+        idx_push = repmat(idx_push,[1 size(push,2)]);
+    end
+    
     rng = options.display.disprange;
+    
     if options.display.normalize
         m1 = 1/range(pre(:)); b1 = max(pre(:))/range(pre(:));
         m2 = 1/range(push(:)); b2 = max(push(:))/range(push(:));
         pre = m1.*pre + b1; push = m2.*push + b2;
         rng = [0 1];
     end
-    im1 = subplot('Position',[0.5 0.53 0.4 0.1]);
+    
+    if options.display.cc_filt
+        pre(mask(:,:,idx_pre)==0) = nan;
+        push(mask(:,:,idx_push)==0) = nan;
+    end
+    
+    p3 = axes('Position',[0.5 0.53 0.4 0.1]);
     imagesc(arfidata.acqTime,arfidata.axial,pre,rng);
     hold on
-    plot(arfidata.acqTime(c1), arfidata.axial(r1), 'bx') ;
-%     imagesc(arfidata.acqTime,arfidata.axial(gate_idx(1):gate_idx(2)),pre,rng);
-    cim1 = copyobj(im1,gcf);
-    set(cim1,'box','on','linewidth',3,'xcolor','y','ycolor','y','xticklabel',[],'yticklabel',[]);
-    %     set(cim1,'xgrid','on','ygrid','on')
-    ylabel('Axial (mm)','Parent',im1,'fontsize',10','fontweight','bold')
-    title(sprintf('ARFI Displacements over DOF at t = %2.2f ms (pre push)',arfidata.trackTime(idx_pre)),'Parent',im1,'fontsize',10','fontweight','bold')
-    im2 = subplot('Position',[0.5 0.37 0.4 0.1]);
+    plot(arfidata.acqTime,gate(1)*ones(nacqT),'g','Linewidth',2)
+    plot(arfidata.acqTime,gate(2)*ones(nacqT),'g','Linewidth',2)
+    cp3 = copyobj(p3,gcf);
+    set(cp3,'box','on','linewidth',3,'xcolor','y','ycolor','y','xticklabel',[],'yticklabel',[]);
+    ylabel('Axial (mm)','Parent',im1,'fontsize',16,'fontweight','bold')
+    if strcmpi(options.display.t_disp_pre,'max')
+        title(sprintf('ARFI Displacements over DOF at t_m_a_x (pre push)',arfidata.trackTime(idx_pre(i))),'parent',p3,'fontsize',16,'fontweight','bold')
+    else
+        title(sprintf('ARFI Displacements over DOF at t = %2.2f ms (pre push)',arfidata.trackTime(idx_pre(i))),'parent',p3,'fontsize',16,'fontweight','bold')
+    end
+    p4 = axes('Position',[0.5 0.37 0.4 0.1]);
     imagesc(arfidata.acqTime,arfidata.axial,push,rng);
     hold on
-    plot(arfidata.acqTime(c2), arfidata.axial(r2),'bx') ;
-%     imagesc(arfidata.acqTime,arfidata.axial(gate_idx(1):gate_idx(2)),push,rng);
-    cim2 = copyobj(im2,gcf);
-    set(cim2,'box','on','linewidth',3,'xcolor','g','ycolor','g','xticklabel',[],'yticklabel',[]);
-    %     set(cim1,'xgrid','on','ygrid','on')
-    hcb = colorbar;
-    set(hcb,'Position',[0.91 0.37 0.0187/2 0.26])
+    plot(arfidata.acqTime,gate(1)*ones(nacqT),'g','Linewidth',2)
+    plot(arfidata.acqTime,gate(2)*ones(nacqT),'g','Linewidth',2)
+    cp4 = copyobj(p4,gcf);
+    set(cp4,'box','on','linewidth',3,'xcolor','g','ycolor','g','xticklabel',[],'yticklabel',[]);
+    cb = colorbar;
+    set(cb,'Position',[0.91 0.37 0.0187/2 0.26])
     if options.display.normalize
-        ylabel(hcb,'Normalized Displacement','fontsize',10','fontweight','bold')
+        ylabel(cb,'Normalized Displacement','fontsize',16,'fontweight','bold')
     else
-        ylabel(hcb,'Displacement (\mum)','fontsize',10','fontweight','bold')
+        ylabel(cb,'Displacement (\mum)','fontsize',16,'fontweight','bold')
     end
-    ylabel('Axial (mm)','parent',im2,'fontsize',10','fontweight','bold')
-    title(sprintf('ARFI Displacements over DOF at t = %2.2f ms (post push)',arfidata.trackTime(idx_push)),'parent',im2,'fontsize',10','fontweight','bold')
-    colormap(hot)
-end
-if isempty(ecgdata)
-    xlabel('Acquisition Time (s)','fontsize',10','fontweight','bold')
+    ylabel('Axial (mm)','parent',im2,'fontsize',16,'fontweight','bold')
+    if strcmpi(options.display.t_disp_pre,'max')
+        title(sprintf('ARFI Displacements over DOF at t_m_a_x (at push)',arfidata.trackTime(idx_push(i))),'parent',p4,'fontsize',16,'fontweight','bold')
+    else
+        title(sprintf('ARFI Displacements over DOF at t = %2.2f ms (at push)',arfidata.trackTime(idx_push(i))),'parent',p4,'fontsize',16,'fontweight','bold')
+    end
+    colormap(cmap)
+    set(cb,'yLim',[options.display.disprange]+[0 -1])
 end
 
-% NaN out zero displacements
+if isempty(ecgdata)
+    xlabel('Acquisition Time (s)','fontsize',16,'fontweight','bold')
+end
+
+% NaN out displacements filtered out by cc_thresh
+pre(pre==inf) = nan;
+push(push==inf) = nan;
 arfidata.disp(mask==0) = nan;
 if options.motionFilter.enable
     arfidata_mf_pre.disp(mask==0) = nan;
     arfidata_mf_push.disp(mask==0) = nan;
 end
 
-% % Display averaged M-mode ARFI
-% subplot('Position',[0.05 0.37 0.4 0.17])
-% if options.motionFilter.enable
-%     temp1 = medfilt2(double(arfidata_mf_push.disp(:,:,idx_pre)));
-%     temp2 = medfilt2(double(arfidata_mf_push.disp(:,:,idx_push)));
-% else
-%     temp1 = medfilt2(double(arfidata.disp(:,:,idx_pre)));
-%     temp2 = medfilt2(double(arfidata.disp(:,:,idx_push)));
-% end
-%
-% avg_pre = mean(temp1(edge_idx(1):edge_idx(2),:),1);
-% avg_push = mean(temp2(edge_idx(1):edge_idx(2),:),1);
-% plot(arfidata.acqTime,avg_pre,'b*--','linewidth',2);
-% hold all
-% plot(arfidata.acqTime,avg_push,'r*--','linewidth',2);
-% ylim(options.display.disprange*2)
-% grid on
-% xlabel('Acquisition Time (s)')
-% ylabel('\mum')
-% legend('Pre','Push')
+% Compute axially averaged Pre and Push Traces
+pre_trace = nanmean(pre(gate_idx(1):gate_idx(2),:));
+push_trace = nanmean(push(gate_idx(1):gate_idx(2),:));
 
-% Incorporate ECG Data into this plot
+% Incorporate ECG Data into this figure
 if ~isempty(ecgdata)
-    samples = zeros(1,size(arfidata.disp,2));
-    for i=1:size(arfidata.disp,2)
+    samples = zeros(1,nacqT);
+    for i=1:nacqT
         samples(i) = ecgdata.arfi(find(ecgdata.arfi(:,1)>arfidata.acqTime(i),1,'first'),2);
     end
     ecgdata.arfi(:,2) = ecgdata.arfi(:,2)/max(ecgdata.arfi(:,2));
     
-    h1 = subplot('Position',[0.5 0.1 0.4 0.2]);
+    h1 = axes('Position',[0.5 0.1 0.4 0.2]);
     plot(ecgdata.arfi(:,1),ecgdata.arfi(:,2),'Linewidth',2);
     hold on
     plot(arfidata.acqTime,samples,'kx','MarkerSize',8)
     pt = plot(arfidata.acqTime(1),samples(1),'ro','Parent',h1,'Markersize',10,'Markerfacecolor','r');
     hold off
     grid on
-    title('ECG Trace','fontsize',10','fontweight','bold')
-    xlabel('Acquisition Time (s)','fontsize',10','fontweight','bold')
+    title('ECG Trace','fontsize',16,'fontweight','bold')
+    xlabel('Acquisition Time (s)','fontsize',16,'fontweight','bold')
     axis tight
     hold(h1)
 end
 
-h2 = subplot('Position',[0.05 0.15 0.4 0.3]);
+h2 = axes('Position',[0.05 0.15 0.4 0.3]);
+set(h2,'Color',[0.5 0.5 0.5]);
 
 if (options.motionFilter.enable && (strcmpi(options.motionFilter.method,'Polynomial') || strcmpi(options.motionFilter.method,'Both')))
     rng = options.display.disprange*2;
 else
     rng = [-100 100];
-%     rng = options.display.disprange*2;
 end
 
 % filename = 'test.gif';
-for i=1:size(arfidata.disp,2)
+for i=1:nacqT
     cla(h2)
     if ~isempty(ecgdata)
         set(pt,'Visible','off')
+        set(h1,'Color',[0.5 0.5 0.5]);
     end
     if options.motionFilter.enable
         plot(arfidata.trackTime(1:par.nref),squeeze(arfidata_mf_pre.disp(ceil(linspace(gate_idx(1),gate_idx(2),5)),i,1:par.nref)),'.--','Parent',h2)
         hold on
         plot(arfidata.trackTime(par.nref+1:end),squeeze(arfidata_mf_push.disp(ceil(linspace(gate_idx(1),gate_idx(2),5)),i,par.nref+1:end)),'.--','Parent',h2)
+        set(h2,'Color',[0.5 0.5 0.5]);
         ylim(h2,rng)
     else
         plot(arfidata.trackTime,squeeze(arfidata.disp(ceil(linspace(gate_idx(1),gate_idx(2),5)),i,:)),'.--','Parent',h2)
+        set(h2,'Color',[0.5 0.5 0.5]);
         ylim(h2,rng)
     end
     hold on
-    plot(options.display.t_disp_pre*ones(1,10),linspace(-100,100,10),'y','linewidth',2,'Parent',h2)
-    plot(options.display.t_disp_push*ones(1,10),linspace(-100,100,10),'g','linewidth',2,'Parent',h2)
-    title(sprintf('ARFI Displacement Profiles:\nDepth Gate = %2.2f - %2.2f mm\nPush # %d (t = %2.2f s)\nMotion Filter = %s',gate(1),gate(2),i,arfidata.acqTime(i),options.motionFilter.method*options.motionFilter.enable),'fontsize',10','fontweight','bold','Parent',h2)
+    plot(arfidata.trackTime(idx_pre(i))*ones(1,10),linspace(-300,300,10),'y','linewidth',2,'Parent',h2)
+    plot(arfidata.trackTime(idx_push(i))*ones(1,10),linspace(-300,300,10),'g','linewidth',2,'Parent',h2)
+    title(sprintf('ARFI Displacement Profiles:\nDepth Gate = %2.2f - %2.2f mm\nPush # %d (t = %2.2f s)\nMotion Filter = %s',gate(1),gate(2),i,arfidata.acqTime(i),options.motionFilter.method*options.motionFilter.enable),'fontsize',16,'fontweight','bold','Parent',h2)
     if i==1
-        xlabel('Track Time (ms)','fontsize',10','fontweight','bold')
-        ylabel('Displacement (\mum)','fontsize',10','fontweight','bold')
+        xlabel('Track Time (ms)','fontsize',16,'fontweight','bold')
+        ylabel('Displacement (\mum)','fontsize',16,'fontweight','bold')
         xlim([arfidata.trackTime(1) arfidata.trackTime(end)])
         grid on
     end
@@ -262,34 +310,34 @@ for i=1:size(arfidata.disp,2)
     %         imwrite(imind,cm,filename,'gif','WriteMode','append','DelayTime',0.1);
     %
     %     end
-    if options.display.debug
-    temp = db(abs(squeeze(arfidata.IQ(:,i,:))));
+    if options.display.IQtraces
+    temp = db(squeeze(arfidata.IQ(:,1+(i-1)*par.nBeams,:)));
     temp(:,par.nref+1:par.nref+par.npush+par.nreverb) = nan;
     offset = 5;
     figure(101);
     if isunix
-        set(101,'Position',[1201 386 1920 1070])
+        set(101,'Position',[1203 390 1916 767])
     elseif ispc
         set(101,'units','normalized','outerposition',[0 0 1 1])
     end
-    hh=subplot(121);cla(hh);for j=1:size(arfidata.disp,3);plot(arfidata.IQaxial,offset*(j-1)-temp(:,j)');hold on;end;view(90,90);
-    hold on;plot(gate(1)*ones(1,100),linspace(-offset*10,offset*size(arfidata.disp,3),100),'r','linewidth',3);plot(gate(2)*ones(1,100),linspace(-offset*10,offset*size(arfidata.disp,3),100),'r','linewidth',3)
-    xlim(edge);title(sprintf('Raw IQ: %d',i));xlabel('Axial (mm)');ylabel('Tracks');set(gca,'YTickLabel',[])
-    subplot(122);imagesc(arfidata.trackTime,arfidata.axial,squeeze(arfidata.ccout(:,i,:)),[options.display.cc_thresh 1]);colorbar;title(sprintf('%s Correlation Coefficients',options.dispEst.ref_type));grid on;colormap(jet)
-    hold on;plot(linspace(-8,8,100),gate(1)*ones(1,100),'r','linewidth',3);plot(linspace(-8,8,100),gate(2)*ones(1,100),'r','linewidth',3)
-    xlabel('Track Time (ms)');ylabel('Axial (mm)')
+    hh=subplot(121);cla(hh);
+    for j=1:ntrackT;plot(arfidata.IQaxial,offset*(j-1)-temp(:,j)');hold on;end;view(90,90);
+    hold on;plot(gate(1)*ones(1,100),linspace(-offset*10,offset*ntrackT,100),'g','linewidth',3);plot(gate(2)*ones(1,100),linspace(-offset*10,offset*ntrackT,100),'g','linewidth',3)
+    xlim(edge);title(sprintf('Raw IQ: %d (t = %2.2f s)',i,arfidata.acqTime(i)),'fontsize',16,'fontweight','bold');
+    set(hh,'Color',[0.5 0.5 0.5]);
+    xlabel('Axial (mm)','fontsize',16,'fontweight','bold');ylabel('Tracks','fontsize',16,'fontweight','bold');set(gca,'YTickLabel',[])
+    
+    subplot(122);imagesc(arfidata.trackTime,arfidata.axial,squeeze(arfidata.cc(:,i,:)),[options.display.cc_thresh 1]);colorbar;
+    title(sprintf('%s Correlation Coefficients',options.dispEst.ref_type),'fontsize',16,'fontweight','bold');grid on;colormap(jet)
+    hold on;plot(linspace(-8,8,100),gate(1)*ones(1,100),'g','linewidth',3);plot(linspace(-8,8,100),gate(2)*ones(1,100),'g','linewidth',3)
+    xlabel('Track Time (ms)','fontsize',16,'fontweight','bold');ylabel('Axial (mm)','fontsize',16,'fontweight','bold')
     end
     pause
 end
 
-% test1 = arfidata.disp(ceil(linspace(edge_idx(1),edge_idx(2),5)),:,:);
-% test2 = max(test1,[],3);
-% figure;stem(mean(test2,1));grid on;ylim([0 30])
-% title([mean(test2(:)),median(test2(:))])
-% figure
-% for i=1:40
-% subplot(211);plot(arfidata.trackTime,squeeze(arfidata.disp(ceil(linspace(edge_idx(1),edge_idx(2),5)),i,:))','*--');grid on;,ylim([-100 100]);title(sprintf('Raw: %d',i))
-% subplot(212);plot(arfidata.trackTime,squeeze(arfidata_mf.disp(ceil(linspace(edge_idx(1),edge_idx(2),5)),i,:))','*--');grid on;ylim([-15 30]);title(sprintf('MF: %d',i));
-% pause
-% end
-
+cla(h2);
+plot(arfidata.acqTime,pre_trace,'y.--','Parent',h2);hold all;plot(arfidata.acqTime,push_trace,'gx--','Parent',h2);
+set(h2,'Color',[0.5 0.5 0.5]);
+xlabel('Acquisition Time (s)','fontsize',16,'fontweight','bold','Parent',h2); 
+title(sprintf('Axially Averaged ARFI Displacements:\nDepth Gate = %2.2f - %2.2f mm\n',gate(1),gate(2)),'fontsize',16,'fontweight','bold','Parent',h2)
+axis(h2,'tight')

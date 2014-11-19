@@ -71,14 +71,6 @@ else
         [I,Q] = genHarmonicSummedData(I,Q,par);
     end
     
-    % Compute axial vector
-    N = size(I,1)*par.interpFactor;
-    axial = (0:N-1)*(par.c/1e3)/(2*par.fs*par.interpFactor);
-    
-    % Insert up-sampled Raw IQ Data into datastruct (used for tracing borders)
-    datastruct.IQ = single(abs(complex(I,Q)));
-    datastruct.IQaxial = axial(1:par.interpFactor:end);
-    
     % Pull out only central Rx line in case of ARFI
     if (strcmpi(datatype,'arfi') && par.nBeams>1 && ~options.dataflow.oneSided)
         I = I(:,ceil(par.nBeams/2):par.nBeams:end,:);
@@ -87,6 +79,19 @@ else
         I = I(:,1:par.nBeams:end,:);
         Q = Q(:,1:par.nBeams:end,:);
     end
+        
+    % Compute axial vector
+    N = size(I,1)*par.interpFactor;
+    axial = (0:N-1)*(par.c/1e3)/(2*par.fs*par.interpFactor);
+    
+    % Insert up-sampled Raw IQ Data into datastruct (used for tracing borders)
+    D = size(I);
+    D(1) = D(1).*par.interpFactor;
+    [Iup, Qup] = computeUpsampledIQdata(I,Q,par.interpFactor);
+    Iup = reshape(Iup, D);
+    Qup = reshape(Qup, D);
+    datastruct.IQ = single(complex(Iup,Qup));
+    datastruct.IQaxial = axial;
     
     % find center frequency (double frequency for harmonic data)
     if par.isHarmonic
@@ -169,16 +174,20 @@ else
     datastruct.acqTime = single(0:1/pushPRF:(par.numBeamGroups*par.numAcq-1)/par.pushPRF);
     
     % Generate lateral and axial vectors for SWEI tracking beams
-    % Generates lateral extent as a funtion of depth based on the calculated angles for Rx beams
-    temp = genLatMatrix(par);
-    temp = temp(ceil(par.numBeamGroups*par.nBeams/2)-floor(par.nBeams/2):ceil(par.numBeamGroups*par.nBeams/2)+floor(par.nBeams/2)); % Pulling out the rx angles corresponding to the center beamgroup
-    if options.dataflow.oneSided
-        temp = temp(2:end);
+    if strcmpi(datatype,'arfi')
+        datastruct.lat = single(zeros(length(axial),par.nBeams));
+    elseif strcmpi(datatype,'swei')
+        % Generates lateral extent as a funtion of depth based on the calculated angles for Rx beams
+        temp = genLatMatrix(par);
+        temp = temp(ceil(par.numBeamGroups*par.nBeams/2)-floor(par.nBeams/2):ceil(par.numBeamGroups*par.nBeams/2)+floor(par.nBeams/2)); % Pulling out the rx angles corresponding to the center beamgroup
+        if options.dataflow.oneSided
+            temp = temp(2:end);
+        end
+        [TH R] =  meshgrid(temp,datastruct.axial);
+        datastruct.lat = R.*sind(TH) - repmat(par.trackParams.txXyzGridParams.apexMm(3).*cosd(temp'),size(R,1),1).*sind(TH);
+        datastruct.ax = R.*cosd(TH);
+%         datastruct.lat = single((abs(par.trackParams.txXyzGridParams.apexMm(3)) + axial)'*tand(temp'));
     end
-    [TH R] =  meshgrid(temp,datastruct.axial);
-    datastruct.lat = R.*sind(TH) - repmat(par.trackParams.txXyzGridParams.apexMm(3).*cosd(temp'),size(R,1),1).*sind(TH);
-    datastruct.ax = R.*cosd(TH);
-    %         datastruct.lat = single((abs(par.trackParams.txXyzGridParams.apexMm(3)) + axial)'*tand(temp'));
     
     % Reshape sweidata
     if strcmpi(datatype,'swei')

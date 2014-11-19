@@ -49,6 +49,8 @@ if plot_flag
     plot(ecgdata(ind_s_stop,1),1.5,'o','markerfacecolor','g')
     xlabel('Acq Time (s)')
     grid on
+    pause
+    close(gcf)
 end
 
 % Insert ECG segments into structure
