@@ -281,70 +281,70 @@ if options.display.dvt_plots
     close(gcf)
 end
 
-return
+keyboard
 
 % Calculate Shear Wave Speed
 if options.calcSWS.enable
-    switch options.calcSWS.SWSmethod
-        case 'TTP'
-            if options.motionFilter.enable
-                [pk_pre, tpk_pre] = subsamplepeak(sweidata_mf_pre.trackTime(1:par.nref),sweidata_mf_pre.disp(:,2:end,:,1:par.nref),4);
-                [pk_push, tpk_push] = subsamplepeak(sweidata_mf_push.trackTime(par.nref+par.npush+par.nreverb+1:end),sweidata_mf_push.disp(:,2:end,:,par.nref+par.npush+par.nreverb+1:end),4);
-            else
-                [pk_pre, tpk_pre] = subsamplepeak(sweidata.trackTime(1:par.nref),sweidata.disp(:,2:end,:,1:par.nref),4);
-                [pk_push, tpk_push] = subsamplepeak(sweidata.trackTime(par.nref+par.npush+par.nreverb+1:end),sweidata.disp(:,2:end,:,par.nref+par.npush+par.nreverb+1:end),4);
+    switch options.calcSWS.method
+        case 'LinReg'
+            switch options.calcSWS.metric
+                case 'TTP'
+                    if options.motionFilter.enable
+                        [pk, tpk] = subsamplepeak(sweidata_mf_push.trackTime(par.nref+par.npush+par.nreverb+1:end),sweidata_mf_push.disp(:,2:end,:,par.nref+par.npush+par.nreverb+1:end),4);
+                    else
+                        [pk, tpk] = subsamplepeak(sweidata.trackTime(par.nref+par.npush+par.nreverb+1:end),sweidata.disp(:,2:end,:,par.nref+par.npush+par.nreverb+1:end),4);
+                    end
+                case 'TTPS'
+                    if options.motionFilter.enable
+                        [pk, tpk] = subsamplepeak(sweidata_mf_push.t_vel(par.nref+par.npush+par.nreverb+1:end),sweidata_mf_push.vel(:,:,:,par.nref+par.npush+par.nreverb+1:end),4);
+                    else
+                        [pk, tpk] = subsamplepeak(sweidata.t_vel(par.nref+par.npush+par.nreverb+1:end),sweidata.vel(:,:,:,par.nref+par.npush+par.nreverb+1:end),4);
+                    end
             end
-        case 'TTPS'
-            if options.motionFilter.enable
-                [pk_pre, tpk_pre] = subsamplepeak(sweidata_mf_pre.t_vel(1:par.nref),sweidata_mf_pre.vel(:,:,:,1:par.nref),4);
-                [pk_push, tpk_push] = subsamplepeak(sweidata_mf_push.t_vel(par.nref+par.npush+par.nreverb+1:end),sweidata_mf_push.vel(:,:,:,par.nref+par.npush+par.nreverb+1:end),4);
-            else
-                [pk_pre, tpk_pre] = subsamplepeak(sweidata.t_vel(1:par.nref),sweidata.vel(:,:,:,1:par.nref),4);
-                [pk_push, tpk_push] = subsamplepeak(sweidata.t_vel(par.nref+par.npush+par.nreverb+1:end),sweidata.vel(:,:,:,par.nref+par.npush+par.nreverb+1:end),4);
+            
+            %     figure;set(gcf,'Position',[1070 50 361 345]);for i=1:size(tpk_push,3);imagesc(sweidata.lat(end,:),sweidata.axial,tpk_push(:,:,i),[0 7]);
+            %     colorbar;xlabel('Lateral (mm)');ylabel('Axial (mm)');title(['TPK Map: Push #',num2str(i)]);axis image;pause;end
+            
+            klen = 13;
+            dxdi= linreg(sweidata.lat,klen,2);
+            dxdt = nan(size(tpk,1),size(tpk,3));
+            for i=1:size(tpk,3)
+                [dtdi, r2] = linreg(tpk(:,:,i),klen,2);
+                temp =  dxdi./dtdi;
+                dxdt(:,i) = temp(:,7).*(r2(:,7)>options.calcSWS.r2_threshold);
             end
-    end
-    
-    %     figure;set(gcf,'Position',[1070 50 361 345]);for i=1:size(tpk_push,3);imagesc(sweidata.lat(end,:),sweidata.axial,tpk_push(:,:,i),[0 7]);
-    %     colorbar;xlabel('Lateral (mm)');ylabel('Axial (mm)');title(['TPK Map: Push #',num2str(i)]);axis image;pause;end
-    
-    klen = 13;
-    dxdi= linreg(sweidata.lat,klen,2);
-    dxdt = nan(size(tpk_push,1),size(tpk_push,3));
-    for i=1:size(tpk_push,3)
-        [dtdi_push, r2_push] = linreg(tpk_push(:,:,i),klen,2);
-        temp =  dxdi./dtdi_push;
-        dxdt_push(:,i) = temp(:,7).*(r2_push(:,7)>options.calcSWS.r2_threshold);
-        [dtdi_pre, r2_pre] = linreg(tpk_pre(:,:,i),klen,2);
-        temp =  dxdi./dtdi_pre;
-        dxdt_pre(:,i) = temp(:,7).*(r2_pre(:,7)>options.calcSWS.r2_threshold);
-    end
-    
-%     figure;plot(dxdt_push,'x');grid on;ylim([0 6])
-    temp = dxdt_push;
-    temp(temp==0) = nan;
-    figure;hist(temp(:),100);title([nanmean(temp(:)), nanmedian(temp(:))])
-    pause
-    close(gcf)
-%     keyboard
-    % Indices corresponding to median filter parameters
-    nax = double(ceil(options.display.medfilt(1)/(sweidata.axial(2) - sweidata.axial(1))));
-    nt = double(ceil(options.display.medfilt(2)/(sweidata.acqTime(2) - sweidata.acqTime(1))));
-    
-    keyboard
-    subplot('Position',[0.5 0.53 0.4 0.1]);
-    imagesc(sweidata.acqTime,sweidata.axial,medfilt2(dxdt_pre,[nax nt]),options.calcSWS.SWSrange)
-    ylabel('Axial (mm)','fontsize',10','fontweight','bold')
-    title('SWS over DOF: Pre Push','fontsize',10','fontweight','bold')
-    subplot('Position',[0.5 0.37 0.4 0.1]);
-    imagesc(sweidata.acqTime,sweidata.axial,medfilt2(dxdt_push,[nax nt]),options.calcSWS.SWSrange)
-    ylabel('Axial (mm)','fontsize',10','fontweight','bold')
-    title('SWS over DOF: Post Push','fontsize',10','fontweight','bold')
-    hcb = colorbar;
-    set(hcb,'Position',[0.91 0.37 0.0187/2 0.26])
-    ylabel(hcb,'SWS (m/s)','fontsize',10','fontweight','bold')
-    colormap(hot)
-    if isempty(ecgdata)
-        xlabel('Acquisition Time (s)','fontsize',10','fontweight','bold')
+            clear temp
+            
+            temp = dxdt;
+            temp(temp==0) = nan;
+            figure;hist(temp(:),100);title([nanmean(temp(:)), nanmedian(temp(:))])
+            pause
+            close(gcf)
+            %     keyboard
+            % Indices corresponding to median filter parameters
+            nax = double(ceil(options.display.medfilt(1)/(sweidata.axial(2) - sweidata.axial(1))));
+            nt = double(ceil(options.display.medfilt(2)/(sweidata.acqTime(2) - sweidata.acqTime(1))));
+            
+            keyboard
+            axes('Position',[0.5 0.53 0.4 0.1]);
+            imagesc(sweidata.acqTime,sweidata.axial,medfilt2(dxdt_pre,[nax nt]),options.calcSWS.SWSrange)
+            ylabel('Axial (mm)','fontsize',10','fontweight','bold')
+            title('SWS over DOF: Pre Push','fontsize',10','fontweight','bold')
+            axes('Position',[0.5 0.37 0.4 0.1]);
+            imagesc(sweidata.acqTime,sweidata.axial,medfilt2(dxdt_push,[nax nt]),options.calcSWS.SWSrange)
+            ylabel('Axial (mm)','fontsize',10','fontweight','bold')
+            title('SWS over DOF: Post Push','fontsize',10','fontweight','bold')
+            hcb = colorbar;
+            set(hcb,'Position',[0.91 0.37 0.0187/2 0.26])
+            ylabel(hcb,'SWS (m/s)','fontsize',10','fontweight','bold')
+            colormap(hot)
+            if isempty(ecgdata)
+                xlabel('Acquisition Time (s)','fontsize',10','fontweight','bold')
+            end
+            
+        case 'LatSum'
+            error('Coming Soon ...')
+            
     end
 end
 
@@ -352,51 +352,51 @@ h2a = subplot('Position',[0.05 0.35 0.37 0.15]);
 h2b = subplot('Position',[0.05 0.1 0.37 0.15]);
 
 for rep =1:1
-for i=1:size(sweidata.disp,3)
-    if ~isempty(ecgdata)
-        set(pt,'Visible','off')
+    for i=1:size(sweidata.disp,3)
+        if ~isempty(ecgdata)
+            set(pt,'Visible','off')
+        end
+        colormap(hot)
+        axes(h2a)
+        imagesc(sweidata.trackTime(par.nref+1:end),sweidata.lat(round(mean(gate_idx)),:),raw(:,par.nref+1:end,i),rng/3)
+        xlabel('Track Time (ms)','fontsize',10','fontweight','bold')
+        ylabel('Lateral (mm)','fontsize',10','fontweight','bold')
+        grid on
+        if strcmpi(options.display.sw_display,'disp')
+            title(sprintf('SWEI Profiles averaged over %2.2f - %2.2f mm\n Raw Displacements: Push # %d (t = %2.2fs)',gate(1),gate(2),i,sweidata.acqTime(i)),'fontsize',10','fontweight','bold')
+        elseif strcmpi(options.display.sw_display,'vel')
+            title(sprintf('SWEI Profiles averaged over %2.2f - %2.2f mm\n Raw Velocities: Push # %d (t = %2.2fs)',gate(1),gate(2),i,sweidata.acqTime(i)),'fontsize',10','fontweight','bold')
+        end
+        axes(h2b)
+        imagesc(sweidata.trackTime(par.nref+1:end),sweidata.lat(round(mean(gate_idx)),:),mf(:,par.nref+1:end,i),rng/3)
+        xlabel('Track Time (ms)','fontsize',10','fontweight','bold')
+        ylabel('Lateral (mm)','fontsize',10','fontweight','bold')
+        grid on
+        
+        hcb = colorbar;
+        set(hcb,'Position',[0.43 0.1 0.0187/2 0.4])
+        
+        if strcmpi(options.display.sw_display,'disp')
+            title(sprintf('Motion Filtered Displacements: Push # %d (t = %2.2f s)',i,sweidata.acqTime(i)),'fontsize',10','fontweight','bold')
+            ylabel(hcb,'Displacement (\mum)','fontsize',10','fontweight','bold')
+        elseif strcmpi(options.display.sw_display,'vel')
+            title(sprintf('Motion Filtered Velocities: Push # %d (t = %2.2f s)',i,sweidata.acqTime(i)),'fontsize',10','fontweight','bold')
+            ylabel(hcb,'Velocity (mm/s)','fontsize',10','fontweight','bold')
+        end
+        
+        if ~isempty(ecgdata)
+            pt = plot(sweidata.acqTime(i),samples(i),'ro','Parent',h1,'Markersize',10,'Markerfacecolor','r');
+        end
+        
+        %     frame = getframe(1);
+        %     im = frame2im(frame);
+        %     [imind,cm] = rgb2ind(im,256);
+        %     if i == 1;
+        %         imwrite(imind,cm,filename,'gif', 'Loopcount',inf,'DelayTime',0.1);
+        %     else
+        %         imwrite(imind,cm,filename,'gif','WriteMode','append','DelayTime',0.1);
+        %
+        %     end
+        pause(0.05)
     end
-    colormap(hot)
-    axes(h2a)
-    imagesc(sweidata.trackTime(par.nref+1:end),sweidata.lat(round(mean(gate_idx)),:),raw(:,par.nref+1:end,i),rng/3)
-    xlabel('Track Time (ms)','fontsize',10','fontweight','bold')
-    ylabel('Lateral (mm)','fontsize',10','fontweight','bold')
-    grid on
-    if strcmpi(options.display.sw_display,'disp')
-        title(sprintf('SWEI Profiles averaged over %2.2f - %2.2f mm\n Raw Displacements: Push # %d (t = %2.2fs)',gate(1),gate(2),i,sweidata.acqTime(i)),'fontsize',10','fontweight','bold')
-    elseif strcmpi(options.display.sw_display,'vel')
-        title(sprintf('SWEI Profiles averaged over %2.2f - %2.2f mm\n Raw Velocities: Push # %d (t = %2.2fs)',gate(1),gate(2),i,sweidata.acqTime(i)),'fontsize',10','fontweight','bold')
-    end
-    axes(h2b)
-    imagesc(sweidata.trackTime(par.nref+1:end),sweidata.lat(round(mean(gate_idx)),:),mf(:,par.nref+1:end,i),rng/3)
-    xlabel('Track Time (ms)','fontsize',10','fontweight','bold')
-    ylabel('Lateral (mm)','fontsize',10','fontweight','bold')
-    grid on
-    
-    hcb = colorbar;
-    set(hcb,'Position',[0.43 0.1 0.0187/2 0.4])
-    
-    if strcmpi(options.display.sw_display,'disp')
-        title(sprintf('Motion Filtered Displacements: Push # %d (t = %2.2f s)',i,sweidata.acqTime(i)),'fontsize',10','fontweight','bold')
-        ylabel(hcb,'Displacement (\mum)','fontsize',10','fontweight','bold')
-    elseif strcmpi(options.display.sw_display,'vel')
-        title(sprintf('Motion Filtered Velocities: Push # %d (t = %2.2f s)',i,sweidata.acqTime(i)),'fontsize',10','fontweight','bold')
-        ylabel(hcb,'Velocity (mm/s)','fontsize',10','fontweight','bold')
-    end
-    
-    if ~isempty(ecgdata)
-        pt = plot(sweidata.acqTime(i),samples(i),'ro','Parent',h1,'Markersize',10,'Markerfacecolor','r');
-    end
-    
-    %     frame = getframe(1);
-    %     im = frame2im(frame);
-    %     [imind,cm] = rgb2ind(im,256);
-    %     if i == 1;
-    %         imwrite(imind,cm,filename,'gif', 'Loopcount',inf,'DelayTime',0.1);
-    %     else
-    %         imwrite(imind,cm,filename,'gif','WriteMode','append','DelayTime',0.1);
-    %
-    %     end
-    pause(0.05)
-end
 end
