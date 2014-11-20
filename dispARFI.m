@@ -70,7 +70,7 @@ end
 nax = double(ceil(options.display.medfilt(1)/(arfidata.axial(2) - arfidata.axial(1))));
 nt = double(ceil(options.display.medfilt(2)/(arfidata.acqTime(2) - arfidata.acqTime(1))));
 cmap = colormap(hot);
-cmap(65,:) = [0.5 0.5 0.5];
+cmap(end,:) = [0.5 0.5 0.5];
 
 % Display M-mode ARFI
 if options.motionFilter.enable
@@ -121,7 +121,7 @@ if options.motionFilter.enable
     if strcmpi(options.display.t_disp_pre,'max')
         title(sprintf('ARFI Displacements over DOF at t_m_a_x (pre push)'),'parent',p3,'fontsize',16,'fontweight','bold')
     else
-        title(sprintf('ARFI Displacements over DOF at t = %2.2f ms (pre push)',arfidata.trackTime(idx_pre(i))),'parent',p3,'fontsize',16,'fontweight','bold')
+        title(sprintf('ARFI Displacements over DOF at t = %2.2f ms (pre push)',arfidata.trackTime(idx_pre(1))),'parent',p3,'fontsize',16,'fontweight','bold')
     end
     p4 = axes('Position',[0.5 0.37 0.4 0.1]);
     imagesc(arfidata.acqTime,arfidata.axial,push,rng);
@@ -141,7 +141,7 @@ if options.motionFilter.enable
     if strcmpi(options.display.t_disp_pre,'max')
         title(sprintf('ARFI Displacements over DOF at t_m_a_x (at push)'),'parent',p4,'fontsize',16,'fontweight','bold')
     else
-        title(sprintf('ARFI Displacements over DOF at t = %2.2f ms (at push)',arfidata.trackTime(idx_push(i))),'parent',p4,'fontsize',16,'fontweight','bold')
+        title(sprintf('ARFI Displacements over DOF at t = %2.2f ms (at push)',arfidata.trackTime(idx_push(1))),'parent',p4,'fontsize',16,'fontweight','bold')
     end
     colormap(cmap)
     set(cb,'yLim',[options.display.disprange]+[0 -1])    
@@ -264,7 +264,7 @@ h2 = axes('Position',[0.05 0.15 0.4 0.3]);
 set(h2,'Color',[0.5 0.5 0.5]);
 
 if (options.motionFilter.enable && (strcmpi(options.motionFilter.method,'Polynomial') || strcmpi(options.motionFilter.method,'Both')))
-    rng = options.display.disprange*2;
+    rng = options.display.disprange*1.5;
 else
     rng = [-100 100];
 end

@@ -125,7 +125,7 @@ if options.display.axial_scan
         
         delete(r1)
         r1 = rectangle('Position',[min(sweidata.lat(:)) gate(1) (max(sweidata.lat(:))-min(sweidata.lat(:))) gate(2)-gate(1)],'EdgeColor','g','Linewidth',2,'Parent',p1);
-        title(sprintf('HQ B-Mode: Frame %d (t = %1.1f s)\n Gate Offset = %2.2f mm ',i,bdata.t(i),offsets(i)),'fontsize',16','fontweight','bold','Parent',p1)
+        title(sprintf('HQ B-Mode: Frame %d (t = %1.1f s)\n Gate Offset = %2.2f mm ',size(bdata.bimg,3),bdata.t(size(bdata.bimg,3)),offsets(i)),'fontsize',16','fontweight','bold','Parent',p1)
         p2 = axes('Position',[0.45 0.3 0.52 1]);
         frame = sweidata.IQ(:,:,1);
         imagesc(linspace(0,range(sweidata.lat(:))*nacqT,size(sweidata.IQ,2)),sweidata.IQaxial,db(frame/max(frame(:))),options.display.IQrange)
@@ -152,12 +152,12 @@ if options.display.axial_scan
                 else
                     mf = nan(size(raw));
                 end
-                rng = options.display.disprange;
+                rng = options.display.disprange*0.5;
             case 'vel'
-                raw = squeeze(nanmean(sweidata.vel(gate_idx(1):gate_idx(2),:,:,:),1));
+                raw = squeeze(nanmean(sweidata.vel(gate_idx(1):gate_idx(2),2:end,:,:),1));
                 raw = permute(raw, [1 3 2]);
                 if options.motionFilter.enable
-                    mf = squeeze(nanmean(sweidata_mf_push.vel(gate_idx(1):gate_idx(2),:,:,:),1));
+                    mf = squeeze(nanmean(sweidata_mf_push.vel(gate_idx(1):gate_idx(2),2:end,:,:),1));
                     mf = permute(mf, [1 3 2]);
                 else
                     mf = nan(size(raw));
@@ -241,14 +241,14 @@ if options.display.sw_movie
             end
             pause(0.01)
         end
-        pause(0.05)
+        pause
     end
     close(gcf)
 end
 
 %% Plot disp vs. time sw traces
 if options.display.dvt_plots
-    line_idx = 1+ [1 7 13];
+    line_idx = 1+ [1 5 7 9 11 13];
     raw = squeeze(sweidata.disp(ceil(linspace(gate_idx(1),gate_idx(2),5)),line_idx,:,par.nref:end));
     if options.motionFilter.enable
         mf = squeeze(sweidata_mf_push.disp(ceil(linspace(gate_idx(1),gate_idx(2),5)),line_idx,:,par.nref:end));
@@ -281,7 +281,29 @@ if options.display.dvt_plots
     close(gcf)
 end
 
-keyboard
+% Compute Axially Averaged Data
+switch options.display.sw_display
+    case 'disp'
+        raw = squeeze(nanmean(sweidata.disp(gate_idx(1):gate_idx(2),2:end,:,:),1));
+        raw = permute(raw, [1 3 2]);
+        if options.motionFilter.enable
+            mf = squeeze(nanmean(sweidata_mf_push.disp(gate_idx(1):gate_idx(2),2:end,:,:),1));
+            mf = permute(mf, [1 3 2]);
+        else
+            mf = nan(size(raw));
+        end
+        rng = options.display.disprange;
+    case 'vel'
+        raw = squeeze(nanmean(sweidata.vel(gate_idx(1):gate_idx(2),2:end,:,:),1));
+        raw = permute(raw, [1 3 2]);
+        if options.motionFilter.enable
+            mf = squeeze(nanmean(sweidata_mf_push.vel(gate_idx(1):gate_idx(2),2:end,:,:),1));
+            mf = permute(mf, [1 3 2]);
+        else
+            mf = nan(size(raw));
+        end
+        rng = options.display.velrange;
+end
 
 % Calculate Shear Wave Speed
 if options.calcSWS.enable
@@ -301,9 +323,9 @@ if options.calcSWS.enable
                         [pk, tpk] = subsamplepeak(sweidata.t_vel(par.nref+par.npush+par.nreverb+1:end),sweidata.vel(:,:,:,par.nref+par.npush+par.nreverb+1:end),4);
                     end
             end
-            
-            %     figure;set(gcf,'Position',[1070 50 361 345]);for i=1:size(tpk_push,3);imagesc(sweidata.lat(end,:),sweidata.axial,tpk_push(:,:,i),[0 7]);
-            %     colorbar;xlabel('Lateral (mm)');ylabel('Axial (mm)');title(['TPK Map: Push #',num2str(i)]);axis image;pause;end
+                        
+%             figure(101);for i=1:nacqT;errorbar(linspace(min(sweidata.lat(:)),max(sweidata.lat(:)),14),mean(tpk(gate_idx(1):gate_idx(2),:,i)),std(tpk(gate_idx(1):gate_idx(2),:,i)));
+%             hold all;title(i);grid on;xlabel('Lateral (mm)');ylabel('Time to Peak (ms)');pause;end;close(gcf)
             
             klen = 13;
             dxdi= linreg(sweidata.lat,klen,2);
@@ -311,7 +333,7 @@ if options.calcSWS.enable
             for i=1:size(tpk,3)
                 [dtdi, r2] = linreg(tpk(:,:,i),klen,2);
                 temp =  dxdi./dtdi;
-                dxdt(:,i) = temp(:,7).*(r2(:,7)>options.calcSWS.r2_threshold);
+                dxdt(:,i) = temp(:,8).*(r2(:,8)>options.calcSWS.r2_threshold);
             end
             clear temp
             
@@ -320,22 +342,17 @@ if options.calcSWS.enable
             figure;hist(temp(:),100);title([nanmean(temp(:)), nanmedian(temp(:))])
             pause
             close(gcf)
-            %     keyboard
+                 
             % Indices corresponding to median filter parameters
             nax = double(ceil(options.display.medfilt(1)/(sweidata.axial(2) - sweidata.axial(1))));
             nt = double(ceil(options.display.medfilt(2)/(sweidata.acqTime(2) - sweidata.acqTime(1))));
             
-            keyboard
-            axes('Position',[0.5 0.53 0.4 0.1]);
-            imagesc(sweidata.acqTime,sweidata.axial,medfilt2(dxdt_pre,[nax nt]),options.calcSWS.SWSrange)
-            ylabel('Axial (mm)','fontsize',10','fontweight','bold')
-            title('SWS over DOF: Pre Push','fontsize',10','fontweight','bold')
-            axes('Position',[0.5 0.37 0.4 0.1]);
-            imagesc(sweidata.acqTime,sweidata.axial,medfilt2(dxdt_push,[nax nt]),options.calcSWS.SWSrange)
+            axes('Position',[0.5 0.5 0.4 0.2]);
+            imagesc(sweidata.acqTime,sweidata.axial,medfilt2(dxdt,[nax nt]),options.calcSWS.SWSrange)
             ylabel('Axial (mm)','fontsize',10','fontweight','bold')
             title('SWS over DOF: Post Push','fontsize',10','fontweight','bold')
             hcb = colorbar;
-            set(hcb,'Position',[0.91 0.37 0.0187/2 0.26])
+            set(hcb,'Position',[0.91 0.5 0.0187/2 0.20])
             ylabel(hcb,'SWS (m/s)','fontsize',10','fontweight','bold')
             colormap(hot)
             if isempty(ecgdata)
@@ -343,10 +360,12 @@ if options.calcSWS.enable
             end
             
         case 'LatSum'
-            error('Coming Soon ...')
+            keyboard
             
     end
 end
+
+keyboard
 
 h2a = subplot('Position',[0.05 0.35 0.37 0.15]);
 h2b = subplot('Position',[0.05 0.1 0.37 0.15]);
