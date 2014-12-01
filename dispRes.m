@@ -1,6 +1,16 @@
 function dispRes(DataDir,fidx,type)
 
-close all
+% close all
+clc
+
+% Add Paths
+if ispc
+    addpath C:\users\vrk4\Documents\GiHub\SC2000\arfiProcCode\
+    addpath(genpath('C:\users\vrk4\Documents\GitHub\TTEProcCode'))
+elseif isunix
+    addpath /emfd/vrk4/GitHub/SC2000/arfiProcCode
+    addpath(genpath('/emfd/vrk4/GitHub/TTEProcCode'))
+end
 
 if ~exist('DataDir','var')
     DataDir = pwd;
@@ -36,4 +46,5 @@ end
 
 arfi_par = load(strcat('arfi_par_',timeStamp));
 swei_par = load(strcat('swei_par_',timeStamp));
-dispTTE(ecgdata,bdata,arfidata,arfi_par,sweidata,swei_par,options);
+dispTTE(ecgdata,bdata,arfidata,arfi_par,sweidata,swei_par,options,timeStamp);
+

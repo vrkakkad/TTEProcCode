@@ -35,7 +35,7 @@ for i=1:size(bdata.bimg,3);
     xlabel('Lateral (mm)','fontsize',16','fontweight','bold')
     ylabel('Axial (mm)','fontsize',16','fontweight','bold')
     title(sprintf('HQ B-Mode: Frame %d (t = %1.1f s)\n',i,bdata.t(i)),'fontsize',16','fontweight','bold')
-    xlim([-25 25]);ylim(edge + [-15 15])
+    xlim([-25 25]);ylim([max(edge(1)-7.5,sweidata.IQaxial(1)) min(edge(2)+7.5,sweidata.IQaxial(end))])
     pause(0.025)
     
     if i==size(bdata.bimg,3)
@@ -53,7 +53,7 @@ for i=1:size(bdata.bimg,3);
         ylabel('Axial (mm)','fontsize',16','fontweight','bold')
         set(gca,'xTickLabel',[])
         title(sprintf('M-Mode Frames\n Harmonic Tracking = %d',par.isHarmonic),'fontsize',16,'fontweight','bold')
-        ylim(edge + [-15 15])
+        ylim([max(edge(1)-7.5,sweidata.IQaxial(1)) min(edge(2)+7.5,sweidata.IQaxial(end))])
         colormap(gray); freezeColors;
         %         grid on
     end
@@ -85,16 +85,16 @@ end
 
 % Compute velocity data from displacement data
 [vel_temp, sweidata.t_vel] = differentiateDisplacements(permute(sweidata.disp,[1 2 4 3]),sweidata.trackTime,options.motionFilter.LPF_Cutoff);
-sweidata.vel = permute(vel_temp,[1 2 4 3]);
+sweidata.vel = 1*permute(vel_temp,[1 2 4 3]);
 sweidata = interpPushReverb(sweidata,options,par,'nan'); % NaN out push and reverb frames
 clear vel_temp
 if options.motionFilter.enable
     [vel_temp, sweidata_mf_pre.t_vel] = differentiateDisplacements(permute(sweidata_mf_pre.disp,[1 2 4 3]),sweidata_mf_pre.trackTime,options.motionFilter.LPF_Cutoff);
-    sweidata_mf_pre.vel = permute(vel_temp,[1 2 4 3]);
+    sweidata_mf_pre.vel = 1*permute(vel_temp,[1 2 4 3]);
     sweidata_mf_pre = interpPushReverb(sweidata_mf_pre,options,par,'nan'); % NaN out push and reverb frames
     clear vel_temp
     [vel_temp, sweidata_mf_push.t_vel] = differentiateDisplacements(permute(sweidata_mf_push.disp,[1 2 4 3]),sweidata_mf_push.trackTime,options.motionFilter.LPF_Cutoff);
-    sweidata_mf_push.vel = permute(vel_temp,[1 2 4 3]);
+    sweidata_mf_push.vel = 1*permute(vel_temp,[1 2 4 3]);
     sweidata_mf_push = interpPushReverb(sweidata_mf_push,options,par,'nan'); % NaN out push and reverb frames
     clear vel_temp
 end
@@ -139,7 +139,7 @@ if options.display.axial_scan
         ylabel('Axial (mm)','fontsize',16','fontweight','bold')
         set(gca,'xTickLabel',[])
         title(sprintf('M-Mode Frames\n Harmonic Tracking = %d',par.isHarmonic),'fontsize',16,'fontweight','bold')
-        ylim(edge + [-15 15])
+        ylim([max(edge(1)-15,sweidata.IQaxial(1)) min(edge(2)+15,sweidata.IQaxial(end))])
         
         % Compute Axially Averaged Data
         switch options.display.sw_display
@@ -177,7 +177,7 @@ if options.display.axial_scan
             set(p,'alphadata',~isnan(raw(:,(par.nref+1:end),i)))
             set(gca,'color',[0.4 0.4 0.4])
             title(sweidata.acqTime(i),'fontsize',16','fontweight','bold')
-            xlim([0 3])
+            xlim([0 7])
         end
         
         figure(102)
@@ -192,7 +192,7 @@ if options.display.axial_scan
             set(p,'alphadata',~isnan(raw(:,(par.nref+1:end),i)))
             set(gca,'color',[0.4 0.4 0.4])
             title(sweidata.acqTime(i),'fontsize',16','fontweight','bold')
-            xlim([0 3])
+            xlim([0 7])
         end
         pause
     end
@@ -204,7 +204,7 @@ end
 if options.display.sw_movie
     figure(101)
     if isunix
-        set(gcf,'Position',[896 286 303 1179])
+        set(gcf,'Position',[69 435 414 906])
     elseif ispc
         set(gcf,'Position',[1002 16 423 526])
     end
@@ -248,7 +248,7 @@ end
 
 %% Plot disp vs. time sw traces
 if options.display.dvt_plots
-    line_idx = 1+ [1 5 7 9 11 13];
+    line_idx = 1+ [1  7  13];
     raw = squeeze(sweidata.disp(ceil(linspace(gate_idx(1),gate_idx(2),5)),line_idx,:,par.nref:end));
     if options.motionFilter.enable
         mf = squeeze(sweidata_mf_push.disp(ceil(linspace(gate_idx(1),gate_idx(2),5)),line_idx,:,par.nref:end));
@@ -305,6 +305,7 @@ switch options.display.sw_display
         rng = options.display.velrange;
 end
 
+
 % Calculate Shear Wave Speed
 if options.calcSWS.enable
     switch options.calcSWS.method
@@ -318,23 +319,30 @@ if options.calcSWS.enable
                     end
                 case 'TTPS'
                     if options.motionFilter.enable
-                        [pk, tpk] = subsamplepeak(sweidata_mf_push.t_vel(par.nref+par.npush+par.nreverb+1:end),sweidata_mf_push.vel(:,:,:,par.nref+par.npush+par.nreverb+1:end),4);
+                        [pk, tpk] = subsamplepeak(sweidata_mf_push.t_vel(par.nref+par.npush+par.nreverb+1:end),sweidata_mf_push.vel(:,2:end,:,par.nref+par.npush+par.nreverb+1:end),4);
                     else
-                        [pk, tpk] = subsamplepeak(sweidata.t_vel(par.nref+par.npush+par.nreverb+1:end),sweidata.vel(:,:,:,par.nref+par.npush+par.nreverb+1:end),4);
+                        [pk, tpk] = subsamplepeak(sweidata.t_vel(par.nref+par.npush+par.nreverb+1:end),sweidata.vel(:,2:end,:,par.nref+par.npush+par.nreverb+1:end),4);
                     end
             end
-                        
+            
+            
+            figure(101);for i=1:40;imagesc(linspace(min(sweidata.lat(:)),max(sweidata.lat(:)),14),sweidata.axial,tpk(:,:,i),[min(min((tpk(:,:,i)))) max(max((tpk(:,:,i))))]);axis image;colorbar;title(i);pause;end
 %             figure(101);for i=1:nacqT;errorbar(linspace(min(sweidata.lat(:)),max(sweidata.lat(:)),14),mean(tpk(gate_idx(1):gate_idx(2),:,i)),std(tpk(gate_idx(1):gate_idx(2),:,i)));
 %             hold all;title(i);grid on;xlabel('Lateral (mm)');ylabel('Time to Peak (ms)');pause;end;close(gcf)
             
-            klen = 13;
+        
+        keyboard
+            klen = 5;
             dxdi= linreg(sweidata.lat,klen,2);
             dxdt = nan(size(tpk,1),size(tpk,3));
             for i=1:size(tpk,3)
                 [dtdi, r2] = linreg(tpk(:,:,i),klen,2);
                 temp =  dxdi./dtdi;
-                dxdt(:,i) = temp(:,8).*(r2(:,8)>options.calcSWS.r2_threshold);
+                figure(102);for j=1:14;plot(temp(:,j));ylim([0 5]);grid on;title(j);pause;end
+                dxdt(:,i) = temp(:,9).*(r2(:,9)>options.calcSWS.r2_threshold);
+%                 figure(102);hold all;plot(temp(:,9));ylim([0 5]);grid on;title(i);pause
             end
+            close(gcf)
             clear temp
             
             temp = dxdt;

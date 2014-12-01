@@ -187,8 +187,7 @@ else
             datastruct.cc = reshape(datastruct.cc,length(axial),par.nBeams,par.numBeamGroups*par.numAcq,par.ensemble);
         end
     end
-    
-    
+        
     % Carried over from procArfi but not necessary for TTE M-mode ARFI/SWEI data
     %     % generate lateral position vector
     %     lat = genLatMatrix(par);

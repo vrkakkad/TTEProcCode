@@ -14,7 +14,7 @@ if ~exist('options','var')
     options.dataflow = struct(...
         'display',0 ...
         ,'ARFI',1 ...
-        ,'SWEI',1 ...
+        ,'SWEI',0 ...
         ,'oneSided',1 ... 
         ,'setID',fidx ...
         ,'saveRes',1 ...
@@ -30,7 +30,7 @@ if ~exist('options','var')
         ,'ccmode',1 ...
         );
 end
-% Extract timeStamp
+% Add Paths
 if ispc
     addpath C:\users\vrk4\Documents\GiHub\SC2000\arfiProcCode\
     addpath(genpath('C:\users\vrk4\Documents\GitHub\TTEProcCode'))
@@ -38,6 +38,7 @@ elseif isunix
     addpath /emfd/vrk4/GitHub/SC2000/arfiProcCode
     addpath(genpath('/emfd/vrk4/GitHub/TTEProcCode'))
 end
+% Extract timeStamp
 list = dir('arfi_par_*'); % get timeStamp based on existance of ARFI par files
 if size(list,1)<options.dataflow.setID
     error('Data set index requested greater than number of data sets')
@@ -87,7 +88,7 @@ else
 end
 
 % Save time stamped results file
-if options.dataflow.saveRes
+if (options.dataflow.saveRes && ~options.dataflow.display)
     fprintf(1,'Saving Res file...\n');
     tic
     resfile = ['res_' timeStamp '.mat'];
@@ -97,7 +98,7 @@ end
 
 % Display
 if options.dataflow.display
-dispTTE(ecgdata,bdata,arfidata,arfi_par,sweidata,swei_par,options);
+dispTTE(ecgdata,bdata,arfidata,arfi_par,sweidata,swei_par,options,timeStamp);
 end
 %%
 % keyboard
