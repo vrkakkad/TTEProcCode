@@ -89,12 +89,13 @@ for i = 1:size(Iup,2)
     end
     if par.ref_idx ==-1
         skip = par.npush+par.nreverb; % nframes to skip ie. push+reverb frames
+        di = 1; % diff for progressive tracking (ie. 1 is A-B, B-C, 2 is A-C, B-D) 
         idx = [1:par.nref,par.nref+1+skip:par.ensemble];
-        for k = 1:size(idx,2)-1
+        for k = 1:size(idx,2)-di
             Iref = squeeze(Iup(:,i,idx(k)));
             Qref = squeeze(Qup(:,i,idx(k)));
-            Idisp = squeeze(Iup(:,i,idx(k+1)));
-            Qdisp = squeeze(Qup(:,i,idx(k+1)));
+            Idisp = squeeze(Iup(:,i,idx(k+di)));
+            Qdisp = squeeze(Qup(:,i,idx(k+di)));
             u_inc(:,i,k) = loupas(Iref,Qref,Idisp,Qdisp,size(Iup,1),kasai_avg,fdem_vec,fc_vec,kasai_scale);
         end
     else
@@ -112,7 +113,7 @@ if par.ref_idx ==-1
     u(:,:,par.nref-1:-1:1) = -cumsum(u_inc(:,:,par.nref-1:-1:1),3);
     % u(:,:,par.nref) retains zeros
     u(:,:,par.nref+(1:skip)) = 1e-6*(-20 + 40*rand(size(u,1),size(u,2),skip)); % junk frames (push/reverb - would need to get interpolated through)
-    u(:,:,par.nref+skip+1:end) = cumsum(u_inc(:,:,par.nref:end),3);   
+    u(:,:,par.nref+skip+1:end+1-di) = cumsum(u_inc(:,:,par.nref:end),3);   
 end
     u = -u.*1e6;
     u = u(1:end-kasai_avg-1, :, :, :);

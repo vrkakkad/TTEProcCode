@@ -1,6 +1,6 @@
 function dispRes(DataDir,fidx,type)
 
-% close all
+close all
 clc
 
 % Add Paths
