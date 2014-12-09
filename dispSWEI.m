@@ -29,7 +29,7 @@ end
 % Display HQ Bmode Frames
 f1 = figure;
 if isunix
-    set(gcf,'Position',[203 286 1196 1170])
+    set(gcf,'Position',[1201 386 1920 1070])
     fsize = 16;
 elseif ispc
     set(gcf,'units','normalized','outerposition',[0 0 1 1])
@@ -73,6 +73,54 @@ for i=1:size(bdata.bimg,3);
         colormap(gray); freezeColors;
         %         grid on
     end
+end
+
+% Trace out center of depth gate
+if (isfield(sweidata,'traced_gate') && isempty(options.display.gateOffset))
+    gate = sweidata.traced_gate;
+    hold on
+    l1 = plot(linspace(0,range(sweidata.lat(:))*nacqT,nacqT),gate(:,1),'g','Linewidth',2);
+    l2 = plot(linspace(0,range(sweidata.lat(:))*nacqT,nacqT),gate(:,2),'g','Linewidth',2);
+    r1 = rectangle('Position',[min(sweidata.lat(:)) min(gate(:)) (max(sweidata.lat(:))-min(sweidata.lat(:))) max(gate(:))-min(gate(:))],'EdgeColor','g','LineStyle','--','Linewidth',2,'Parent',p1);
+    trace_flag = input('Previously traced gate exists, do you want to retrace the gate? (y/n) [n]: ','s');
+    if ~strcmpi(trace_flag,'y')
+        trace_flag = 'n';
+    else
+        delete(l1,l2,r1)
+    end
+elseif (~isfield(sweidata,'traced_gate') && isempty(options.display.gateOffset))
+    trace_flag = 'y';
+end
+if ((isempty(options.display.gateOffset) && ~isfield(sweidata,'traced_gate')) || strcmpi(trace_flag,'y'))
+    hold on
+    fprintf(1,'Ready to trace gate (GateWidth = %2.1f mm)...\n',options.display.gateWidth)
+    for i=1:nacqT
+        [x,y] = ginput(1);
+        mark(i) = plot(x,y,'yo','MarkerSize',10);
+        gate(i,:) = (y + [-options.display.gateWidth/2 options.display.gateWidth/2]);
+        clear x y
+    end
+    delete(mark)
+    plot(linspace(0,range(sweidata.lat(:))*nacqT,nacqT),gate(:,1),'g','Linewidth',2)
+    plot(linspace(0,range(sweidata.lat(:))*nacqT,nacqT),gate(:,2),'g','Linewidth',2)
+    rectangle('Position',[min(sweidata.lat(:)) min(gate(:)) (max(sweidata.lat(:))-min(sweidata.lat(:))) max(gate(:))-min(gate(:))],'EdgeColor','g','LineStyle','--','Linewidth',2,'Parent',p1)
+    fprintf(1,'Gate Traced.\n')
+elseif ((isempty(options.display.gateOffset) && ~isfield(sweidata,'traced_gate')) && strcmpi(trace,'n'))
+    gate = sweidata.traced_gate;
+    hold on
+    plot(linspace(0,range(sweidata.lat(:))*nacqT,nacqT),gate(:,1),'g','Linewidth',2)
+    plot(linspace(0,range(sweidata.lat(:))*nacqT,nacqT),gate(:,2),'g','Linewidth',2)
+    rectangle('Position',[min(sweidata.lat(:)) min(gate(:)) (max(sweidata.lat(:))-min(sweidata.lat(:))) max(gate(:))-min(gate(:))],'EdgeColor','g','LineStyle','--','Linewidth',2,'Parent',p1)
+end
+
+traced_gate = gate;
+
+if (min(gate(:))<sweidata.axial(1) || max(gate(:))>sweidata.axial(end))
+    warning('Depth gate requested (%2.2f-%2.2f mm) falls outside the range over which displacements are computed (%2.2f-%2.2f mm)',min(gate(:)),max(gate(:)),sweidata.axial(1),sweidata.axial(end));
+end
+
+for i=1:nacqT
+    gate_idx(i,:) = [find(sweidata.axial>gate(i,1),1,'first') find(sweidata.axial<gate(i,2),1,'last')];
 end
 
 if ~isempty(ecgdata)
@@ -310,31 +358,39 @@ if options.display.dvt_plots
     close(gcf)
 end
 
-return
-
 % Compute Axially Averaged Data
 switch options.display.sw_display
     case 'disp'
-        raw = squeeze(nanmean(sweidata.disp(gate_idx(1):gate_idx(2),2:end,:,:),1));
+        for i=1:nacqT
+            raw(:,i,:) = squeeze(nanmean(sweidata.disp(gate_idx(i,1):gate_idx(i,2),2:end,i,:),1));
+        end
         raw = permute(raw, [1 3 2]);
         if options.motionFilter.enable
-            mf = squeeze(nanmean(sweidata_mf_push.disp(gate_idx(1):gate_idx(2),2:end,:,:),1));
+            for i=1:nacqT
+                mf(:,i,:) = squeeze(nanmean(sweidata_mf_push.disp(gate_idx(i,1):gate_idx(i,2),2:end,i,:),1));
+            end
             mf = permute(mf, [1 3 2]);
         else
             mf = nan(size(raw));
         end
         rng = options.display.disprange;
     case 'vel'
-        raw = squeeze(nanmean(sweidata.vel(gate_idx(1):gate_idx(2),2:end,:,:),1));
+        for i=1:nacqT
+            raw(:,i,:) = squeeze(nanmean(sweidata.vel(gate_idx(i,1):gate_idx(i,2),2:end,i,:),1));
+        end
         raw = permute(raw, [1 3 2]);
         if options.motionFilter.enable
-            mf = squeeze(nanmean(sweidata_mf_push.vel(gate_idx(1):gate_idx(2),2:end,:,:),1));
+            for i=1:nacqT
+                mf(:,i,:) = squeeze(nanmean(sweidata_mf_push.vel(gate_idx(i,1):gate_idx(i,2),2:end,i,:),1));
+            end
             mf = permute(mf, [1 3 2]);
         else
             mf = nan(size(raw));
         end
         rng = options.display.velrange;
 end
+
+keyboard
 
 % Calculate Shear Wave Speed
 if options.calcSWS.enable

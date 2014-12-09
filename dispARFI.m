@@ -23,7 +23,7 @@ end
 % Display HQ Bmode Frames
 figure
 if isunix
-    set(gcf,'Position',[203 286 1196 1170])
+    set(gcf,'Position',[1201 386 1920 1070])
     fsize = 16;
 elseif ispc
     set(gcf,'units','normalized','outerposition',[0 0 1 1])
@@ -63,7 +63,7 @@ for i=1:size(bdata.bimg,3);
         ylabel('Axial (mm)','fontsize',fsize,'fontweight','bold')
         set(gca,'xTickLabel',[])
         title(sprintf('M-Mode Frames\n Harmonic Tracking = %d',par.isHarmonic),'fontsize',fsize,'fontweight','bold')
-        ylim([max(edge(1)-15,arfidata.IQaxial(1)) min(edge(2)+15,arfidata.IQaxial(end))])
+        ylim([max(edge(1)-7.5,arfidata.IQaxial(1)) min(edge(2)+7.5,arfidata.IQaxial(end))])
         colormap(gray); freezeColors;
         %         grid on
     end
@@ -71,7 +71,7 @@ end
 
 % Trace out center of depth gate
 if (isfield(arfidata,'traced_gate') && isempty(options.display.gateOffset))
-    gate = arfidata.traced_gate;
+    gate = repmat(arfidata.traced_gate',1,2) + repmat([-options.display.gateWidth/2 options.display.gateWidth/2],length(arfidata.traced_gate),1);
     hold on
     l1 = plot(linspace(0,range(arfidata.lat(:))*nacqT,nacqT),gate(:,1),'g','Linewidth',2);
     l2 = plot(linspace(0,range(arfidata.lat(:))*nacqT,nacqT),gate(:,2),'g','Linewidth',2);
@@ -100,14 +100,14 @@ if ((isempty(options.display.gateOffset) && ~isfield(arfidata,'traced_gate')) ||
     rectangle('Position',[-2 min(gate(:)) 4 max(gate(:))-min(gate(:))],'EdgeColor','g','LineStyle','--','Linewidth',2,'Parent',p1)
     fprintf(1,'Gate Traced.\n')
 elseif ((isempty(options.display.gateOffset) && ~isfield(arfidata,'traced_gate')) && strcmpi(trace,'n'))
-    gate = arfidata.traced_gate;
+    gate = repmat(arfidata.traced_gate',1,2) + repmat([-options.display.gateWidth/2 options.display.gateWidth/2],length(arfidata.traced_gate),1);
     hold on
     plot(linspace(0,range(arfidata.lat(:))*nacqT,nacqT),gate(:,1),'g','Linewidth',2)
     plot(linspace(0,range(arfidata.lat(:))*nacqT,nacqT),gate(:,2),'g','Linewidth',2)
     rectangle('Position',[-2 min(gate(:)) 4 max(gate(:))-min(gate(:))],'EdgeColor','g','LineStyle','--','Linewidth',2,'Parent',p1)
 end
 
-traced_gate = gate;
+traced_gate = mean(gate');
 
 if (min(gate(:))<arfidata.axial(1) || max(gate(:))>arfidata.axial(end))
     warning('Depth gate requested (%2.2f-%2.2f mm) falls outside the range over which displacements are computed (%2.2f-%2.2f mm)',min(gate(:)),max(gate(:)),arfidata.axial(1),arfidata.axial(end));
@@ -329,7 +329,7 @@ set(h2,'Color',[0.5 0.5 0.5]);
 if (options.motionFilter.enable && (strcmpi(options.motionFilter.method,'Polynomial') || strcmpi(options.motionFilter.method,'Both')))
     rng = options.display.disprange*1.5;
 else
-    rng = [-100 100];
+    rng = quantile(arfidata.disp(:),[0.01 0.99]);
 end
 
 % Calculate indices for disp. vs. time plots
@@ -340,6 +340,41 @@ end
 corder = winter(options.display.n_pts);
 set(h2,'ColorOrder',corder);
 
+rng = quantile(arfidata.disp(:),[0.01 0.99]);
+temp_gate = zeros(ntrackT*nacqT,2);
+for i=1:nacqT
+    temp_gate(1+ntrackT*(i-1):ntrackT*i,:) = repmat(gate(i,:),ntrackT,1);
+end
+disps = reshape(permute(arfidata.disp,[1 3 2]),size(arfidata.disp,1),[]);
+vels = reshape(permute(diff(arfidata.disp,1,3),[1 3 2]),size(arfidata.disp,1),[]);
+figure(201)
+if isunix
+    set(201,'Position',[1210 750 1909 624]);
+elseif ispc
+    set(gcf,'units','normalized','outerposition',[0 0 1 1])
+end
+im_201 = imagesc(linspace(0,arfidata.acqTime(end),nacqT*ntrackT),arfidata.axial,disps,rng);colorbar
+hold on
+plot(linspace(0,arfidata.acqTime(end),nacqT*ntrackT),temp_gate(:,1),'k','linewidth',5)
+plot(linspace(0,arfidata.acqTime(end),nacqT*ntrackT),temp_gate(:,2),'k','linewidth',5)
+set(gca,'color',[0.5 0.5 0.5]);
+set(im_201,'alphaData',~isnan(disps))
+figure(202)
+if isunix
+    set(202,'Position',[1210 750 1909 624]);
+elseif ispc
+    set(gcf,'units','normalized','outerposition',[0 0 1 1])
+end
+im_202 = imagesc(linspace(0,arfidata.acqTime(end),nacqT*ntrackT),arfidata.axial,vels,rng/25);colorbar
+hold on
+plot(linspace(0,arfidata.acqTime(end),nacqT*ntrackT),temp_gate(:,1),'k','linewidth',5)
+plot(linspace(0,arfidata.acqTime(end),nacqT*ntrackT),temp_gate(:,2),'k','linewidth',5)
+set(gca,'color',[0.5 0.5 0.5]);
+set(im_202,'alphaData',~isnan(vels))
+% figure(103);set(103,'Position',[1210 390 1909 624])
+% imagesc([],arfidata.axial,reshape(permute(diff(diff(arfidata.disp,1,3),1,3),[1 3 2]),size(arfidata.disp,1),[]),rng/100);colorbar
+
+pause
 % filename = 'test.gif';
 for i=1:nacqT
     cla(h2)
@@ -382,29 +417,67 @@ for i=1:nacqT
     %         imwrite(imind,cm,filename,'gif','WriteMode','append','DelayTime',0.1);
     %
     %     end
-    if options.display.IQtraces
-    temp = db(squeeze(arfidata.IQ(:,1+(i-1)*par.nBeams,:)));
-    temp(:,par.nref+1:par.nref+par.npush+par.nreverb) = nan;
-    offset = 5;
-    figure(101);
-    if isunix
-        set(101,'Position',[1203 390 1916 767])
-    elseif ispc
-        set(101,'units','normalized','outerposition',[0 0 1 1])
-    end
-    hh=subplot(121);cla(hh);
-    for j=1:ntrackT;plot(arfidata.IQaxial,offset*(j-1)-temp(:,j)');hold on;end;view(90,90);
-    hold on;plot(gate(1)*ones(1,100),linspace(-offset*10,offset*ntrackT,100),'g','linewidth',3);plot(gate(2)*ones(1,100),linspace(-offset*10,offset*ntrackT,100),'g','linewidth',3)
-    xlim(edge);title(sprintf('Raw IQ: %d (t = %2.2f s)',i,arfidata.acqTime(i)),'fontsize',fsize,'fontweight','bold');
-    set(hh,'Color',[0.5 0.5 0.5]);
-    xlabel('Axial (mm)','fontsize',fsize,'fontweight','bold');ylabel('Tracks','fontsize',fsize,'fontweight','bold');set(gca,'YTickLabel',[])
+    if options.display.extras
+        temp = db(squeeze(arfidata.IQ(:,1+(i-1)*par.nBeams,:)));
+        temp(:,par.nref+1:par.nref+par.npush+par.nreverb) = nan;
+        offset = 5;
+        figure(101);
+        if isunix
+            set(101,'Position',[1 950 1195 900])
+        elseif ispc
+            set(101,'units','normalized','outerposition',[0 0 1 1])
+        end
+        hh=subplot(121);cla(hh);
+        for j=1:ntrackT;plot(arfidata.IQaxial,offset*(j-1)-temp(:,j)');hold on;end;view(90,90);
+        hold on;plot(gate(i,1)*ones(1,100),linspace(-offset*10,offset*ntrackT,100),'g','linewidth',3);plot(gate(i,2)*ones(1,100),linspace(-offset*10,offset*ntrackT,100),'g','linewidth',3)
+        xlim(edge);title(sprintf('Raw IQ: %d (t = %2.2f s)',i,arfidata.acqTime(i)),'fontsize',fsize,'fontweight','bold');
+        set(hh,'Color',[0.5 0.5 0.5]);
+        xlabel('Axial (mm)','fontsize',fsize,'fontweight','bold');ylabel('Tracks','fontsize',fsize,'fontweight','bold');set(gca,'YTickLabel',[])
+        
+        subplot(122);imagesc(arfidata.trackTime,arfidata.axial,squeeze(arfidata.cc(:,i,:)),[options.display.cc_thresh 1]);colorbar;
+        title(sprintf('%s Correlation Coefficients',options.dispEst.ref_type),'fontsize',fsize,'fontweight','bold');grid on;colormap(jet)
+        hold on;plot(linspace(-8,8,100),gate(i,1)*ones(1,100),'g','linewidth',3);plot(linspace(-8,8,100),gate(i,2)*ones(1,100),'g','linewidth',3)
+        xlabel('Track Time (ms)','fontsize',fsize,'fontweight','bold');ylabel('Axial (mm)','fontsize',fsize,'fontweight','bold')
     
-    subplot(122);imagesc(arfidata.trackTime,arfidata.axial,squeeze(arfidata.cc(:,i,:)),[options.display.cc_thresh 1]);colorbar;
-    title(sprintf('%s Correlation Coefficients',options.dispEst.ref_type),'fontsize',fsize,'fontweight','bold');grid on;colormap(jet)
-    hold on;plot(linspace(-8,8,100),gate(1)*ones(1,100),'g','linewidth',3);plot(linspace(-8,8,100),gate(2)*ones(1,100),'g','linewidth',3)
-    xlabel('Track Time (ms)','fontsize',fsize,'fontweight','bold');ylabel('Axial (mm)','fontsize',fsize,'fontweight','bold')
+       raw = squeeze(arfidata.disp(:,i,:));
+       mf = zeros(size(raw));
+       if options.motionFilter.enable
+           mf(:,1:par.nref) = squeeze(arfidata_mf_pre.disp(:,i,1:par.nref));
+           mf(:,par.nref+1:end) = squeeze(arfidata_mf_push.disp(:,i,par.nref+1:end));
+       end
+       
+       figure(102)
+        if isunix
+            set(102,'Position',[1 1 1195 900])
+        elseif ispc
+            set(102,'units','normalized','outerposition',[0 0 1 1])
+        end
+       f1 = subplot(121);
+       ff1 = imagesc(arfidata.trackTime,arfidata.axial,raw,[-150 150]);colormap(copper);colorbar
+       xlabel('Track Time (ms)','fontsize',fsize,'fontweight','bold');ylabel('Axial (mm)','fontsize',fsize,'fontweight','bold');title(sprintf('Raw Displacement: Push %d\n Time = %1.2f s',i,arfidata.acqTime(i)),'fontsize',fsize,'fontweight','bold');
+       set(f1,'color',[0.5 0.5 0.5]);
+%        set(ff1,'alphaData',~isnan(raw))
+       hold on
+       plot(options.display.t_disp_pre*ones(1,length(arfidata.axial)),arfidata.axial,'y','linewidth',2)
+       plot(options.display.t_disp_push*ones(1,length(arfidata.axial)),arfidata.axial,'g','linewidth',2)
+       l1 = plot(arfidata.trackTime,gate(i,1)*ones(1,length(arfidata.trackTime)),'g--','linewidth',2);
+       l2 = plot(arfidata.trackTime,gate(i,2)*ones(1,length(arfidata.trackTime)),'g--','linewidth',2);
+       f2 = subplot(122);
+       ff2 = imagesc(arfidata.trackTime,arfidata.axial,mf,options.display.disprange);colormap(copper);colorbar
+       xlabel('Track Time (ms)','fontsize',fsize,'fontweight','bold');ylabel('Axial (mm)','fontsize',fsize,'fontweight','bold');title(sprintf('MF Displacement: Push %d\n Time = %1.2f s',i,arfidata.acqTime(i)),'fontsize',fsize,'fontweight','bold');
+       set(f2,'color',[0.5 0.5 0.5]);
+%        set(ff2,'alphaData',~isnan(mf))
+       hold on
+       plot(options.display.t_disp_pre*ones(1,length(arfidata.axial)),arfidata.axial,'y','linewidth',2)
+       plot(options.display.t_disp_push*ones(1,length(arfidata.axial)),arfidata.axial,'g','linewidth',2)
+       l3 = plot(arfidata.trackTime,gate(i,1)*ones(1,length(arfidata.trackTime)),'g--','linewidth',2);
+       l4 = plot(arfidata.trackTime,gate(i,2)*ones(1,length(arfidata.trackTime)),'g--','linewidth',2);
     end
+    
     pause
+    if options.display.extras
+    delete(l1,l2,l3,l4)
+    end
 end
 
 cla(h2);
@@ -412,4 +485,5 @@ plot(arfidata.acqTime,pre_trace,'y.--','Parent',h2);hold all;plot(arfidata.acqTi
 set(h2,'Color',[0.5 0.5 0.5]);
 xlabel('Acquisition Time (s)','fontsize',fsize,'fontweight','bold','Parent',h2); 
 title(sprintf('Axially Averaged ARFI Displacements\n(within Depth Gate)'),'fontsize',fsize,'fontweight','bold','Parent',h2)
-axis(h2,'tight')
+ylim(options.display.disprange*1.5)
+xlim([0 max(arfidata.acqTime)])
