@@ -443,7 +443,6 @@ if options.display.extras > 0;
         end
         
         set(0,'CurrentFigure',1)
-        
         if ~skip
             w = waitforbuttonpress;
             val = double(get(gcf,'CurrentCharacter'));
@@ -462,6 +461,10 @@ if options.display.extras > 0;
         if skip
             pause(0.05)
             i=i+1;
+        end
+        
+        if options.display.extras > 2
+            %             delete(l1
         end
     end
 end

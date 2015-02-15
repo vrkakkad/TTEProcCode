@@ -1,36 +1,42 @@
 function procTTE(DataDir,fidx,options)
 
-close all
-
 if ~exist('DataDir','var')
     DataDir = pwd;
 end
 if ~exist('fidx','var')
     fidx = -1;
 end
+
+cudir = pwd;
 cd(DataDir)
-% Input Parameters
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Default Input Parameters
 if ~exist('options','var')
     options.dataflow = struct(...
-        'display',1 ...
-        ,'ARFI',1 ...
-        ,'SWEI',0 ...
-        ,'oneSided',1 ...
+        'display', 0 ...
+        ,'ecg_test', 0 ...
+        ,'ARFI', 1 ...
+        ,'SWEI', 1 ...
+        ,'oneSided', 1 ...
         ,'setID',fidx ...
-        ,'saveRes',0 ...
+        ,'saveRes', 1 ...
         );
     options.dispEst = struct(...
         'method','Loupas'...
         ,'ref_type','Progressive' ...   % anchored/progressive
         ,'ref_idx',[] ...
-        ,'nreverb',2 ...         % Not having the correct nreverb could mess up displacements when using progressive ref_type
-        ,'interpFactor',5 ...
-        ,'kernelLength',4 ...
-        ,'searchRegion',4 ...
-        ,'ccmode',1 ...
+        ,'nreverb', 2 ...         % Not having the correct nreverb could mess up displacements when using progressive ref_type
+        ,'interpFactor', 5 ...
+        ,'kernelLength', 4 ...
+        ,'DOF_fraction', 1 ... % Fraction of Depth of Field (around focus) to compute displacements for. DOF = 9*lambda*F_num^2
+        ,'searchRegion', 4 ...
+        ,'ccmode', 1 ...
         );
 end
-% Add Paths
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Add Paths
 if ispc
     addpath C:\users\vrk4\Documents\GiHub\SC2000\arfiProcCode\
     addpath(genpath('C:\users\vrk4\Documents\GitHub\TTEProcCode'))
@@ -38,12 +44,16 @@ elseif isunix
     addpath /emfd/vrk4/GitHub/SC2000/arfiProcCode
     addpath(genpath('/emfd/vrk4/GitHub/TTEProcCode'))
 end
-% Extract timeStamp
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Extract timeStamp
 list = dir('arfi_par_*'); % get timeStamp based on existance of ARFI par files
 if size(list,1)<options.dataflow.setID
     error('Data set index requested greater than number of data sets')
 end
-% Reading in timestamp for data set
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Reading in timestamp for data set
 if length(options.dataflow.setID)==14
     timeStamp = options.dataflow.setID;
 elseif options.dataflow.setID == -1
@@ -58,17 +68,22 @@ else
     fprintf('Loading data with timeStamp = %s (Set # %d of %d)\n', timeStamp,fidx,size(list,1));
 end
 
-% Extract ECG/Trigger Data
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Extract ECG/Trigger Data
 if exist(strcat('ECG_data_',timeStamp,'.mat'),'file')
     fprintf(1,'Loading ECG/Trigger Data...\n');
-    ecgdata = extractECG(timeStamp,0);
+    ecgdata = extractECG(timeStamp,options.dataflow.ecg_test);
 else
     ecgdata = [];
 end
-% Extract B-mode Data
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Extract B-mode Data
 fprintf(1,'Extracting B-mode Data...\n');
 [bdata,bmodeSave] = extractBmode(timeStamp);
-% Extract ARFI/SWEI Data
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Extract ARFI/SWEI Data
 fprintf(1,'Extracting ARFI/SWEI Data...\n');
 if options.dataflow.ARFI
     [arfidata,arfiSave,options] = extractMmode(timeStamp,options,'ARFI');
@@ -87,7 +102,8 @@ else
     swei_par = [];
 end
 
-% Save time stamped results file
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Save time stamped results file
 if (options.dataflow.saveRes && ~options.dataflow.display)
     fprintf(1,'Saving Res file...\n');
     tic
@@ -96,9 +112,12 @@ if (options.dataflow.saveRes && ~options.dataflow.display)
     fprintf(1,'Save Time = %2.2fs\n',toc)
 end
 
-% Display
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Display
 if options.dataflow.display
     dispTTE(ecgdata,bdata,arfidata,arfi_par,sweidata,swei_par,options,timeStamp);
 end
-%%
-% keyboard
+
+cd(cudir)
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

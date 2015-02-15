@@ -76,7 +76,7 @@ else
     axial = (0:N-1)*(par.c/1e3)/(2*par.fs*par.interpFactor);
     
     % Insert up-sampled Raw IQ Data into datastruct (used for tracing borders)
-    datastruct.IQ = single(abs(complex(I,Q)));
+    datastruct.IQ = single(complex(I,Q));
     datastruct.IQaxial = axial(1:par.interpFactor:end);
     
     % Pull out only central Rx line in case of ARFI
@@ -97,13 +97,13 @@ else
     par.lambda = par.c / par.fc * 1e3; % mm
     
     % calculate depth gate over which to compute displacements
-    dof = 9*1.540/par.pushFreq*(par.pushFnum)^2;
+    dof = options.dispEst.DOF_fraction*9*1.540/par.pushFreq*(par.pushFnum)^2;
     start_depth = par.pushFocalDepth - (1/2)*dof;
     end_depth = par.pushFocalDepth + (1/2)*dof;
     if start_depth<axial(1);start_depth = axial(1);end
     if end_depth>axial(end);end_depth = axial(end-1);end
    
-    % Compute displacements using the last reference and then reorder the data
+    % Compute displacements
     if strcmpi(options.dispEst.ref_type,'anchored')
         fprintf(1,'Computing displacements: Anchored at Frame %d (nref = %d)\nDepth Gate = %2.2f - %2.2f mm\n',par.ref_idx,par.nref,start_depth,end_depth)
     elseif par.ref_idx == -1
@@ -119,11 +119,15 @@ else
             error('Reference Type not recognized or not supported')
         end
     elseif strcmpi(options.dispEst.method,'Pesavento')
-        if (strcmpi(options.dispEst.ref_type,'anchored'))
-            [dispout I_up Q_up cc] = runPesavento_gated(I, Q, par.interpFactor, par.kernelLength*2, options.dispEst.searchRegion, axial, par, start_depth, end_depth);
-        elseif (strcmpi(options.dispEst.ref_type,'progressive'))
+        
+        % In the works...
+        
+%         if (strcmpi(options.dispEst.ref_type,'anchored'))
+%             [dispout I_up Q_up cc] = runPesavento_gated(I, Q, par.interpFactor, par.kernelLength*2, options.dispEst.searchRegion, axial, par, start_depth, end_depth);
+%         elseif (strcmpi(options.dispEst.ref_type,'progressive'))
 %             [dispout_all I_all Q_all cc] = runPesaventoFlux(I,Q,res.t,options.displacement.interpFactor,options.displacement.kernelLength*2,options.displacement.searchRegion,axial0, par);
-        end
+%         end
+
         else
         error('Displacement estimation method not recognized or not supported')
     end

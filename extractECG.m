@@ -1,4 +1,4 @@
-function ecgstruct = extractECG(timeStamp,plot_flag);
+function ecgstruct = extractECG(timeStamp,plot_flag)
 
 load(strcat('ECG_data_',timeStamp));
 
