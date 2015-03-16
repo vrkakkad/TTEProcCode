@@ -73,31 +73,28 @@ if options.dataflow.SWEI
     [sweidata.traced_gate] = dispSWEI(ecgdata,bdata,sweidata,sweidata_mf_pre,sweidata_mf_push,options,swei_par);
 end
 
-% Save time stamped results file
-if (options.dataflow.saveRes && ~exist(['res_',timeStamp,'.mat'],'file'))
-    options.dataflow.saveRes = 1;
-    fprintf(1,'Saving Res file...\n');
-    tic
-    resfile = ['res_' timeStamp '.mat'];
-    save(resfile,'bdata','ecgdata','arfidata','sweidata','options','-v7.3');
-    fprintf(1,'Save Time = %2.2fs\n',toc)
-elseif options.dataflow.ARFI
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Save time stamped results file
+
+if options.dataflow.ARFI
     if ~isempty(arfidata.traced_gate)
         options.dataflow.saveRes = 1;
-        fprintf(1,'Detected Traced Gate. Saving Res file...\n');
+        fprintf(1,'Detected Traced Gate. Saving ARFI Res file...\n');
         tic
-        resfile = ['res_' timeStamp '.mat'];
-        save(resfile,'bdata','ecgdata','arfidata','sweidata','options','-v7.3');
-        fprintf(1,'Save Time = %2.2fs\n',toc)
+        resfile = ['res_arfi_' timeStamp '.mat'];
+        save(resfile,'bdata','ecgdata','arfidata','options','-v7.3');
+        fprintf(1,'Save Time for ARFI = %2.2fs\n',toc)
     end
-elseif options.dataflow.SWEI
+end
+
+if options.dataflow.SWEI
     if ~isempty(sweidata.traced_gate)
         options.dataflow.saveRes = 1;
-        fprintf(1,'Detected Traced Gate. Saving Res file...\n');
+        fprintf(1,'Detected Traced Gate. Saving SWEI Res file...\n');
         tic
-        resfile = ['res_' timeStamp '.mat'];
-        save(resfile,'bdata','ecgdata','arfidata','sweidata','options','-v7.3');
-        fprintf(1,'Save Time = %2.2fs\n',toc)
+        resfile = ['res_swei_' timeStamp '.mat'];
+        save(resfile,'bdata','ecgdata','sweidata','options','-v7.3');
+        fprintf(1,'Save Time for SWEI = %2.2fs\n',toc)
     end
 end
 

@@ -1,11 +1,14 @@
-function runTTE_res(DataDir,fidx,type)
+function runTTE_res(DataDir,fidx,type) 
+    % Type - ARFI or SWEI
+
+close all
 
 % Add Paths
 if ispc
-    addpath C:\users\vrk4\Documents\GiHub\SC2000\arfiProcCode\
-    addpath(genpath('C:\users\vrk4\Documents\GitHub\TTEProcCode'))
+    addpath(genpath('C:\Users\vrk4\Documents\GiHub\SC2000\arfiProcCode\'))
+    addpath(genpath('C:\Users\vrk4\Documents\GitHub\TTEProcCode'))
 elseif isunix
-    addpath /emfd/vrk4/GitHub/SC2000/arfiProcCode
+    addpath(genpath('/emfd/vrk4/GitHub/SC2000/arfiProcCode'))
     addpath(genpath('/emfd/vrk4/GitHub/TTEProcCode'))
 end
 
@@ -16,35 +19,27 @@ if ~exist('fidx','var')
     fidx = 1;
 end
 
-
 if ~exist('type','var')
-    type = 'Both';
+    type = 'ARFI';
+    str = sprintf('Type not specified. Defaulting to ARFI');
+    warning(str);
 end
 cd(DataDir)
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Inputs to procTTE
-options.dataflow = struct(...
-    'display', 1 ...
-    ,'ecg_test', 0 ...
-    ,'ARFI', 1 ...
-    ,'SWEI', 0 ...
-    ,'oneSided', 1 ...
-    ,'setID',fidx ...
-    ,'saveRes', 0 ...
-    );
-options.dispEst = struct(...
-    'method','Loupas'...
-    ,'ref_type','Progressive' ...   % anchored/progressive
-    ,'ref_idx',[] ...
-    ,'nreverb', 2 ...         % Not having the correct nreverb could mess up displacements when using progressive ref_type
-    ,'interpFactor', 5 ...
-    ,'kernelLength', 4 ...
-    ,'DOF_fraction', 1 ... % Fraction of Depth of Field (around focus) to compute displacements for. DOF = 9*lambda*F_num^2
-    ,'searchRegion', 4 ...
-    ,'ccmode', 1 ...
-    );
+list = dir(strcat('res_',lower(type),'*')); % get timeStamp based on existance of ARFI par files
+if size(list,1)<fidx
+    error('Data set index requested greater than number of data sets')
+end
 
+if fidx == -1
+    timeStamp = list(end).name(end-17:end-4);
+    fprintf('Loading data with timeStamp = %s (Set # %d of %d)\n', timeStamp,size(list,1),size(list,1));
+else
+    timeStamp = list(fidx).name(end-17:end-4);
+    fprintf('Loading data with timeStamp = %s (Set # %d of %d)\n', timeStamp,fidx,size(list,1));
+end
+
+load(strcat('res_',lower(type),'_',timeStamp,'.mat'));
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Inputs to dispTTE
 options.motionFilter = struct(...
@@ -55,24 +50,24 @@ options.motionFilter = struct(...
     ,'timeRange_push',[-1.5 -1 4.5 5] ...
     ,'pre_offset', -6.5 ...
     ... % Parameters for Bandpass filter
-    ,'LPF_Cutoff', 1000 ...
+    ,'LPF_Cutoff', 750 ...
     );
 options.motionFilter.timeRange_pre = options.motionFilter.timeRange_push + options.motionFilter.pre_offset;
 
 options.display = struct(...
     'theme', 'dark' ... % light/dark
     ,'IQrange',[-40 0] ...
-    ,'gateWidth', 3 ...
+    ,'gateWidth', 5 ...
     ,'gateOffset', 0 ...
     ,'n_pts', 3 ...
     ,'medfilt',[1 0.15] ... % median filter parameters - [axial (mm) acqTime (s)]
     ,'cc_filt', 1 ...
     ,'cc_thresh', 0.995 ...
     ... % ARFI Display Parameters
-    ,'disprange',[-5 15] ...
+    ,'disprange',[-2 10] ...
     ,'normalize', 0 ...
     ,'t_disp_push', 0.5 ...
-    ,'extras', 0 ...
+    ,'extras', 0 ... % [-1] - Suppress all extra plots; [0,1] - Asks for User Input on which plots to display
     ... % SWEI Display Parameters
     ,'velrange',[-5 15] ...
     ,'axial_scan',0 ...
@@ -90,28 +85,18 @@ options.calcSWS = struct(...
     ,'SWSrange',[0 7] ...
     );
 
-list = dir('res_*'); % get timeStamp based on existance of ARFI par files
-if size(list,1)<fidx
-    error('Data set index requested greater than number of data sets')
-end
-
-timeStamp = list(fidx).name(end-17:end-4);
-fprintf('Loading data with timeStamp = %s (Set # %d of %d)\n', timeStamp,fidx,size(list,1));
-
-load(strcat('res_',timeStamp,'.mat'));
-
 switch type
     case 'ARFI'
         options.dataflow.ARFI = 1;
         options.dataflow.SWEI = 0;
+        sweidata = []; swei_par = [];
     case 'SWEI'
         options.dataflow.ARFI = 0;
         options.dataflow.SWEI = 1;
-    case 'Both'
+        arfidata = []; arfi_par = [];
 end
 
-arfi_par = load(strcat('arfi_par_',timeStamp));
-swei_par = load(strcat('swei_par_',timeStamp));
+eval(strcat(lower(type),'_par = load(strcat(lower(type),''_par_'',timeStamp));'));
 dispTTE(ecgdata,bdata,arfidata,arfi_par,sweidata,swei_par,options,timeStamp);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

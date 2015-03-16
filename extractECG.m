@@ -1,4 +1,4 @@
-function ecgstruct = extractECG(timeStamp,plot_flag)
+function ecgstruct = extractECG(timeStamp,plot_flag,dt)
 
 load(strcat('ECG_data_',timeStamp));
 
@@ -10,6 +10,19 @@ t_high = find(high==1)/fs;
 % ind_gap = find(ind_high);
 t_gap = diff(t_high);
 
+if plot_flag
+    figure(501)
+    subplot(211)
+    stem(t_gap)
+    grid on
+    title(timeStamp)
+    subplot(212)
+    plot(ecgdata(:,1),ecgdata(:,2))
+    grid on
+    hold on
+end
+
+try
 % Calculate Start and Stop Indices for HQ B-mode Grab
 ind_t_gap1 = find(t_gap>0.05,1,'first');
 val_t_gap1 = t_gap(ind_t_gap1);
@@ -33,14 +46,6 @@ val_t_gap4 = t_gap(ind_t_gap4);
 ind_s_stop = round(ind_high(ind_t_gap4));
 
 if plot_flag
-    figure
-    subplot(211)
-    stem(t_gap)
-    grid on
-    title(timeStamp)
-    subplot(212)
-    plot(ecgdata(:,1),ecgdata(:,2))
-    hold on
     plot(ecgdata(ind_b_start,1),1.5,'o','markerfacecolor','r')
     plot(ecgdata(ind_b_stop,1),1.5,'o','markerfacecolor','r')
     plot(ecgdata(ind_a_start,1),1.5,'o','markerfacecolor','y')
@@ -48,17 +53,36 @@ if plot_flag
     plot(ecgdata(ind_s_start,1),1.5,'o','markerfacecolor','g')
     plot(ecgdata(ind_s_stop,1),1.5,'o','markerfacecolor','g')
     xlabel('Acq Time (s)')
-    grid on
     pause
-    close(gcf)
+    close(501)
 end
 
-% Insert ECG segments into structure
-ecgstruct.bmode(:,1)= [0:1/fs:(ind_b_stop-ind_b_start)/fs];
-ecgstruct.bmode(:,2)= -ecgdata(ind_b_start:ind_b_stop,3);
+% Auto Check for ECG Data
+t = ecgdata(:,1);
+% dt_b = t(ind_b_stop) - t(ind_b_start);
+dt_a = t(ind_a_stop) - t(ind_a_start);
+dt_s = t(ind_s_stop) - t(ind_s_start);
+dt_b_rng = dt(1)+[-0.1 0.1]; dt_a_rng = dt(2)+[-0.1 0.1]; dt_s_rng = dt(3)+[-0.1 0.1]; 
 
-ecgstruct.arfi(:,1)= [0:1/fs:(ind_a_stop-ind_a_start)/fs];
-ecgstruct.arfi(:,2)= -ecgdata(ind_a_start:ind_a_stop,3);
+% if ((dt_b > dt_b_rng(1) && dt_b < dt_b_rng(2)) && (dt_a > dt_a_rng(1) && dt_a < dt_a_rng(2)) && (dt_s > dt_s_rng(1) && dt_s < dt_s_rng(2)))
+if ((dt_a > dt_a_rng(1) && dt_a < dt_a_rng(2)) && (dt_s > dt_s_rng(1) && dt_s < dt_s_rng(2)))
+    % Insert ECG segments into structure
+    ecgstruct.bmode(:,1)= [0:1/fs:(ind_b_stop-ind_b_start)/fs];
+    ecgstruct.bmode(:,2)= ecgdata(ind_b_start:ind_b_stop,3);
+    
+    ecgstruct.arfi(:,1)= [0:1/fs:(ind_a_stop-ind_a_start)/fs];
+    ecgstruct.arfi(:,2)= ecgdata(ind_a_start:ind_a_stop,3);
+    
+    ecgstruct.swei(:,1)= [0:1/fs:(ind_s_stop-ind_s_start)/fs];
+    ecgstruct.swei(:,2)= ecgdata(ind_s_start:ind_s_stop,3);
+else
+    warning('ECG Triggers are misaligned: Check manually')
+    ecgstruct = [];
+end
 
-ecgstruct.swei(:,1)= [0:1/fs:(ind_s_stop-ind_s_start)/fs];
-ecgstruct.swei(:,2)= -ecgdata(ind_s_start:ind_s_stop,3);
+catch
+    disp('Catch')
+    warning('ECG Triggers are misaligned: Check manually')
+    close(501)
+    ecgstruct = [];
+end

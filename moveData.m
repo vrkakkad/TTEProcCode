@@ -14,6 +14,12 @@ if ~exist(src,'dir')
 end
 orig = pwd;
 cd(src)
+
+if exist(strcat(src,'start_ecg.txt'),'file')
+    delete(strcat(src,'start_ecg.txt'),'file')
+    clc
+end
+
 list = dir('par_*');
 nfiles = size(list,1);
 if nfiles>0
@@ -21,13 +27,13 @@ if nfiles>0
 end
 if strcmpi(src,'V:\Program Files\Siemens\syngo\Bedrock\Startup\')
     if ecg_flag
-        fprintf(1,'Waiting for grabTTE command...\n')
+        fprintf(1,'\n\nWaiting for grabTTE command...\n')
         check = exist(strcat(src,'start_ecg.txt'),'file');
         while check==0
             check = exist(strcat(src,'start_ecg.txt'),'file');
         end
         fprintf(1,'ECG Acquisition Triggered...\n')
-        fprintf(1,'Waiting for data files to be written to %s...\n',src);
+        fprintf(1,'\n\nWaiting for data files to be written to %s...\n',src);
         clear time data
         [time,data] = usbaqc();
         fprintf(1,'ECG Acquisition Complete.\n');

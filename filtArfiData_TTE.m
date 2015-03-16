@@ -33,7 +33,7 @@ dt = median(diff(t));
 if (t(end)-t(end-1))>10*dt,ts(end)=0;end
 % fprintf(1, 'Removing time step:\t%d\n', find(ts==0));
 t = t(ts);t = round(t*1e4)/1e4; % numerical tolerance issues
-tn = t(1):dt:t(end);tn = round(tn*1e4)/1e4; % numerical tolerance issues
+tn = t; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% tn = t(1):dt:t(end);tn = round(tn*1e4)/1e4; % numerical tolerance issues
 fs = 1./dt*1e3;
 % [B A] = butter(2, cutoffFreq./(fs/2)); % filter at 20Hz-1kHz
 [B A] = butter(2, cutoffFreq./(fs/2),'low');
