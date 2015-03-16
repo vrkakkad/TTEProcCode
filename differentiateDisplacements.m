@@ -1,4 +1,3 @@
-
 function [vel t1] = differentiateDisplacements(arfidata,t,passBandHz)
 vel = diff(arfidata,1,3)/diff(t(1:2));
 t1 = 0.5*t(1:end-1) + 0.5*t(2:end);
