@@ -14,13 +14,14 @@ cd(DataDir)
 %% Default Input Parameters
 if ~exist('options','var')
     options.dataflow = struct(...
-        'display', 0 ...
+        'stream', stream_idx ... % [1] - realTime, [2] - review, [3] - cluster
+        ,'display', 1 ...
         ,'ecg_test', 0 ...
         ,'ARFI', 1 ...
-        ,'SWEI', 1 ...
+        ,'SWEI', 0 ...
         ,'oneSided', 1 ...
         ,'setID',fidx ...
-        ,'saveRes', 1 ...
+        ,'saveRes', 0 ...
         );
     options.dispEst = struct(...
         'method','Loupas'...
@@ -28,9 +29,8 @@ if ~exist('options','var')
         ,'ref_idx',[] ...
         ,'nreverb', 2 ...         % Not having the correct nreverb could mess up displacements when using progressive ref_type
         ,'interpFactor', 5 ...
-        ,'kernelLength', 4 ...
-        ,'DOF_fraction', 1 ... % Fraction of Depth of Field (around focus) to compute displacements for. DOF = 9*lambda*F_num^2
-        ,'searchRegion', 4 ...
+        ,'kernelLength', 4 ... % 10 -> 2.5 mm
+        ,'DOF_fraction', 2 ... % Fraction of Depth of Field (around focus) to compute displacements for. DOF = 9*lambda*F_num^2
         ,'ccmode', 1 ...
         );
 end
@@ -38,10 +38,10 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Add Paths
 if ispc
-    addpath C:\users\vrk4\Documents\GiHub\SC2000\arfiProcCode\
-    addpath(genpath('C:\users\vrk4\Documents\GitHub\TTEProcCode'))
+    addpath(genpath('C:\Users\vrk4\Documents\GiHub\SC2000\arfiProcCode\'))
+    addpath(genpath('C:\Users\vrk4\Documents\GitHub\TTEProcCode'))
 elseif isunix
-    addpath /emfd/vrk4/GitHub/SC2000/arfiProcCode
+    addpath(genpath('/emfd/vrk4/GitHub/SC2000/arfiProcCode'))
     addpath(genpath('/emfd/vrk4/GitHub/TTEProcCode'))
 end
 
@@ -68,14 +68,7 @@ else
     fprintf('Loading data with timeStamp = %s (Set # %d of %d)\n', timeStamp,fidx,size(list,1));
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Extract ECG/Trigger Data
-if exist(strcat('ECG_data_',timeStamp,'.mat'),'file')
-    fprintf(1,'Loading ECG/Trigger Data...\n');
-    ecgdata = extractECG(timeStamp,options.dataflow.ecg_test);
-else
-    ecgdata = [];
-end
+options.timeStamp = timeStamp;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Extract B-mode Data
@@ -88,7 +81,7 @@ fprintf(1,'Extracting ARFI/SWEI Data...\n');
 if options.dataflow.ARFI
     [arfidata,arfiSave,options] = extractMmode(timeStamp,options,'ARFI');
     arfi_par = load(sprintf('arfi_par_%s.mat',timeStamp));
-    arfidata = interpPushReverb(arfidata,options,arfi_par,'');
+    arfidata = interpPushReverb(arfidata,options,arfi_par,''); % Interpolates through push-reverb; so that LPF can to function
 else
     arfidata = [];
     arfi_par = [];
@@ -96,20 +89,43 @@ end
 if options.dataflow.SWEI
     [sweidata,sweiSave,options] = extractMmode(timeStamp,options,'SWEI');
     swei_par = load(sprintf('swei_par_%s.mat',timeStamp));
-    sweidata = interpPushReverb(sweidata,options,swei_par,'');
+    sweidata = interpPushReverb(sweidata,options,swei_par,''); % Interpolates through push-reverb; so that LPF can to function
 else
     sweidata = [];
     swei_par = [];
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Extract ECG/Trigger Data
+if exist(strcat('ECG_data_',timeStamp,'.mat'),'file')
+    fprintf(1,'Loading ECG/Trigger Data...\n');
+    % Expected Length of Bmode, ARFI and SWEI acq respectively
+    dt(1) = ceil(bdata.t(end));
+    dt(2) = ceil(arfidata.acqTime(end)); 
+    dt(3) = dt(2); % For now, this would need to be updated if ARFI/SWEI timing is independent
+    
+    ecgdata = extractECG(timeStamp,options.dataflow.ecg_test,dt);
+else
+    ecgdata = [];
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Save time stamped results file
 if (options.dataflow.saveRes && ~options.dataflow.display)
-    fprintf(1,'Saving Res file...\n');
-    tic
-    resfile = ['res_' timeStamp '.mat'];
-    save(resfile,'bdata','ecgdata','arfidata','sweidata','options','-v7.3');
-    fprintf(1,'Save Time = %2.2fs\n',toc)
+    fprintf(1,'Saving Res files...\n');
+    if options.dataflow.ARFI
+        tic
+        resfile = ['res_arfi_' timeStamp '.mat'];
+        save(resfile,'bdata','ecgdata','arfidata','options','-v7.3');
+        fprintf(1,'Save Time for ARFI = %2.2fs\n',toc)
+    end
+    if options.dataflow.SWEI
+        tic
+        resfile = ['res_swei_' timeStamp '.mat'];
+        save(resfile,'bdata','ecgdata','sweidata','options','-v7.3');
+        fprintf(1,'Save Time for SWEI = %2.2fs\n',toc)
+    end
+    
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

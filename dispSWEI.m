@@ -1,80 +1,122 @@
 function [traced_gate,trace_flag] = dispSWEI(ecgdata,bdata,sweidata,sweidata_mf_pre,sweidata_mf_push,options,par)
 
-[ndepth nlat nacqT ntrackT] = size(sweidata.disp);
+%% Check for existance of traced gate
+if isfield(sweidata,'traced_gate') && ~isempty(sweidata.traced_gate)
+    prior_trace = 1;
+    traced_gate = sweidata.traced_gate;
+else
+    prior_trace = 0;
+    traced_gate = [];
+end
+
+dims = size(sweidata.disp);
+ndepth = dims(1); nacqT = dims(2); ntrackT = dims(3);
 
 edge = [sweidata.axial(1) sweidata.axial(end)];
 
-% Set Gate Parameters
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Set Gate Parameters
+if prior_trace
+    gate = repmat(sweidata.traced_gate,1,2) + repmat(options.display.gateOffset,length(sweidata.traced_gate),2) + repmat([-options.display.gateWidth/2 options.display.gateWidth/2],length(sweidata.traced_gate),1);
+elseif ~prior_trace
+    gate = (par.pushFocalDepth + options.display.gateOffset + [-options.display.gateWidth/2 options.display.gateWidth/2]);
+    gate = repmat(gate,[nacqT 1]);
+    traced_gate = [];
+    if (min(gate(:))<sweidata.axial(1) || max(gate(:))>sweidata.axial(end))
+        warning('Depth gate requested (%2.2f-%2.2f mm) falls outside the range over which displacements are computed (%2.2f-%2.2f mm)',min(gate(:)),max(gate(:)),arfidata.axial(1),arfidata.axial(end));
+    end
+end
+
 if options.display.axial_scan
     ngates = round(2*(edge(2)-edge(1))/options.display.gateWidth);
     offsets = linspace(edge(1)+options.display.gateWidth/2,edge(2)-options.display.gateWidth/2,ngates) - par.pushFocalDepth;
     options.display.gateOffset = offsets(1);
 end
 
-if ~isempty(options.display.gateOffset)
-    gate = (par.pushFocalDepth + options.display.gateOffset + [-options.display.gateWidth/2 options.display.gateWidth/2]);
-    gate = repmat(gate,[nacqT 1]);
-    traced_gate = [];
-    trace_flag = 'n';
-    
-    if (min(gate(:))<sweidata.axial(1) || max(gate(:))>sweidata.axial(end))
-        warning('Depth gate requested (%2.2f-%2.2f mm) falls outside the range over which displacements are computed (%2.2f-%2.2f mm)',min(gate(:)),max(gate(:)),sweidata.axial(1),sweidata.axial(end));
+% Set Display Parameters
+figure(2)
+if isunix
+    set(gcf,'Position',[1201 386 1920 1070])
+    dispPar.fsize = 16;
+elseif ispc
+    set(gcf,'units','normalized','outerposition',[0 0 1 1])
+    dispPar.fsize = 8;
+end
+
+if strcmpi(options.display.theme,'light')
+    dispPar.fig = [1 1 1]; dispPar.txt = 'k'; dispPar.ax = [0.5 0.5 0.5];
+    for i=1:size(bdata.bimg,3)
+        temp = bdata.bimg(:,:,i);
+        temp(temp==bdata.bimg(1,1,i)) = 256;
+        bdata.bimg(:,:,i) = temp;
     end
-    
-    for i=1:nacqT
-        gate_idx(i,:) = [find(sweidata.axial>gate(i,1),1,'first') find(sweidata.axial<gate(i,2),1,'last')];
+elseif strcmpi(options.display.theme,'dark')
+    dispPar.fig = 'k'; dispPar.txt = 'w'; dispPar.ax = [0.25 0.25 0.25];
+    for i=1:size(bdata.bimg,3)
+        temp = bdata.bimg(:,:,i);
+        temp(temp==bdata.bimg(1,1,i)) = 0;
+        bdata.bimg(:,:,i) = temp;
     end
 end
 
-% Display HQ Bmode Frames
-f1 = figure;
-if isunix
-    set(gcf,'Position',[1201 386 1920 1070])
-    fsize = 16;
-elseif ispc
-    set(gcf,'units','normalized','outerposition',[0 0 1 1])
-    fsize = 8;
+set(1,'Color',dispPar.fig)
+
+                                        img_rng = options.display.disprange;
+                                        plot_rng = options.display.disprange;
+
+dispPar.cmap = colormap(parula);
+dispPar.cmap(end,:) = dispPar.ax;
+
+dispPar.corder = winter(options.display.n_pts);
+
+    
+for i=1:nacqT
+    gate_idx(i,:) = [find(sweidata.axial>gate(i,1),1,'first') find(sweidata.axial<gate(i,2),1,'last')];
 end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Display Bmode Cine
 for i=1:size(bdata.bimg,3);
     p1 = subplot('Position',[0.1 0.6 0.3 0.3]);
     imagesc(bdata.blat,bdata.bax,bdata.bimg(:,:,i));
     colormap(gray);axis image; freezeColors;
-    title(i);
-    hold on
-    rectangle('Position',[-7 edge(1) 14 edge(2)-edge(1)],'EdgeColor','b','Linewidth',2)
-    if ~isempty(options.display.gateOffset)
-        r1 = rectangle('Position',[min(sweidata.lat(:)) min(gate(:)) (max(sweidata.lat(:))-min(sweidata.lat(:))) options.display.gateWidth],'EdgeColor','g','Linewidth',2,'Parent',p1);
+    hold(p1,'on')
+    r1 = rectangle('Position',[-7 edge(1) 14 edge(2)-edge(1)],'EdgeColor','b','Linewidth',2,'Parent',p1);
+    if prior_trace
+        r2 = rectangle('Position',[-2 min(gate(:)) 4 range(gate(:))],'EdgeColor','g','Linestyle','--','Linewidth',2,'Parent',p1);
+    elseif ~prior_trace
+        r2 = rectangle('Position',[min(sweidata.lat(:)) min(gate(:)) (max(sweidata.lat(:))-min(sweidata.lat(:)))  options.display.gateWidth],'EdgeColor','g','Linewidth',2,'Parent',p1);
     end
     hold off
-    xlabel('Lateral (mm)','fontsize',fsize','fontweight','bold')
-    ylabel('Axial (mm)','fontsize',fsize','fontweight','bold')
-    title(sprintf('HQ B-Mode: Frame %d (t = %1.1f s)\n',i,bdata.t(i)),'fontsize',fsize','fontweight','bold')
-    %     xlim([-25 25]);ylim([max(edge(1)-7.5,sweidata.IQaxial(1)) min(edge(2)+7.5,sweidata.IQaxial(end))])
-    pause(0.025)
+    xlabel('Lateral (mm)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.fig)
+    ylabel('Axial (mm)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.fig)
+    title(sprintf('B-Mode Cine: Frame %d (t = %1.1f s)',i,bdata.t(i)),'fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+    set(gca,'xcolor',dispPar.fig,'ycolor',dispPar.fig,'fontweight','bold')
     
+    %     xlim([-25 25]);ylim([max(edge(1)-7.5,sweidata.IQaxial(1)) min(edge(2)+7.5,sweidata.IQaxial(end))])
+    
+    pause(0.025)
     if i==size(bdata.bimg,3)
-        % Display M-mode Data
+        % Display M-mode IQ
         p2 = axes('Position',[0.45 0.3 0.52 1]);
-        frame = sweidata.IQ(:,:,1);
+        frame = abs(sweidata.IQ(:,:,1)); % Display first frame only
         imagesc(linspace(0,range(sweidata.lat(:))*nacqT,size(sweidata.IQ,2)),sweidata.IQaxial,db(frame/max(frame(:))),options.display.IQrange)
-        hold on
-        plot(linspace(0,range(sweidata.lat(:))*nacqT,nacqT),sweidata.axial(1)*ones(1,nacqT),'b','Linewidth',2)
-        plot(linspace(0,range(sweidata.lat(:))*nacqT,nacqT),sweidata.axial(end)*ones(1,nacqT),'b','Linewidth',2)
-        if ~isempty(options.display.gateOffset)
-            plot(linspace(0,range(sweidata.lat(:))*nacqT,nacqT),gate(:,1),'g','Linewidth',2)
-            plot(linspace(0,range(sweidata.lat(:))*nacqT,nacqT),gate(:,2),'g','Linewidth',2)
-        end
-        hold off
+        hold(p2,'on')
+        l1 = plot(linspace(0,range(sweidata.lat(:))*nacqT,nacqT),sweidata.axial(1)*ones(1,nacqT),'b','Linewidth',2,'Parent',p2)
+        l2 = plot(linspace(0,range(sweidata.lat(:))*nacqT,nacqT),sweidata.axial(end)*ones(1,nacqT),'b','Linewidth',2,'Parent',p2)
+        l3 = plot(linspace(0,range(sweidata.lat(:))*nacqT,nacqT),gate(:,1),'g','Linewidth',2,'Parent',p2)
+        l4 = plot(linspace(0,range(sweidata.lat(:))*nacqT,nacqT),gate(:,2),'g','Linewidth',2,'Parent',p2)
+        hold(p2,'off')
         axis image
-        ylabel('Axial (mm)','fontsize',fsize','fontweight','bold')
+        ylabel('Axial (mm)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
         set(gca,'xTickLabel',[])
-        title(sprintf('M-Mode Frames\n Harmonic Tracking = %d',par.isHarmonic),'fontsize',fsize,'fontweight','bold')
+        title(sprintf('M-Mode Frames\n Harmonic Tracking = %d',par.isHarmonic),'fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
         ylim([max(edge(1)-7.5,sweidata.IQaxial(1)) min(edge(2)+7.5,sweidata.IQaxial(end))])
         colormap(gray); freezeColors;
-        %         grid on
+        set(gca,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold')
     end
 end
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Trace out center of depth gate
 if (isfield(sweidata,'traced_gate') && isempty(options.display.gateOffset))
     gate = sweidata.traced_gate;
