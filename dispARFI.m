@@ -32,7 +32,7 @@ fig1 = figure(1);
 set(fig1,'Name','TTE ARFI','UserData','main_fig')
 if isunix
     set(fig1,'Position',[1201 386 1920 1070])
-    dispPar.fsize = 16;
+    dispPar.fsize = 12;
 elseif ispc
     set(fig1,'units','normalized','outerposition',[0 0 1 1])
     dispPar.fsize = 8;
@@ -204,7 +204,7 @@ hold(ax16,'off')
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Trace Gate
-if (options.dataflow.stream == 1 || options.dataflow.stream == 3)  % realTime or cluster
+if options.display.extras == [-1]  % no breaks
     trace_input = 'n';
     flatgate_input = 'y';
 end
@@ -212,7 +212,7 @@ end
 if prior_trace
     trace_input = input('\nDo you want to retrace the gate? (y/n) [n]: ','s');
     flatgate_input = input('\nDo you want to use a flat gate? (y/n) [n]: ','s');
-elseif (~prior_trace && options.dataflow.stream == 2) % review
+elseif (~prior_trace && options.display.extras ~= -1) 
     trace_input = input('\nDo you want to trace a depth gate? (y/n) [n]: ','s');
     flatgate_input = 'y';
 end
@@ -224,8 +224,8 @@ if strcmpi(flatgate_input,'y')
     hold(ax11,'on')
     r2 = rectangle('Position',[-2 min(gate(:)) 4 options.display.gateWidth],'EdgeColor','g','Linewidth',2,'Parent',ax11);
     hold(ax12,'on')
-    l3 = plot(linspace(0,range(arfidata.lat(:))*nacqT,nacqT),gate(:,1),'g','Linewidth',2,'Parent',ax12);
-    l4 = plot(linspace(0,range(arfidata.lat(:))*nacqT,nacqT),gate(:,2),'g','Linewidth',2,'Parent',ax12);
+    l3 = plot(linspace(0,arfidata.acqTime(end),nacqT),gate(:,1),'g','Linewidth',2,'Parent',ax12);
+    l4 = plot(linspace(0,arfidata.acqTime(end),nacqT),gate(:,2),'g','Linewidth',2,'Parent',ax12);
     if (min(gate(:))<arfidata.axial(1) || max(gate(:))>arfidata.axial(end))
         warning('Depth gate requested (%2.2f-%2.2f mm) falls outside the range over which displacements are computed (%2.2f-%2.2f mm)',min(gate(:)),max(gate(:)),arfidata.axial(1),arfidata.axial(end));
     end
@@ -571,32 +571,34 @@ if strcmpi(extra3_input,'y')
     
     ax41 = axes('Position',[0.030 0.67 0.95 0.25]);
     pn1 = imagesc(1000*tt,arfidata.axial(min(top)-10:max(bot)+10),raw_panel,[-200 200]);
-    xlabel('Time (ms)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.fig)
-    ylabel('Axial (mm)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.fig)
+    xlabel('Time (ms)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+    ylabel('Axial (mm)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
     set(ax41,'color',dispPar.ax,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','TickLength',[0 0.025],'xgrid','on','UserData','disppanel_ax')
     set(pn1,'AlphaData',~isnan(raw_panel))
     ylim([min(gate(:,1)) max(gate(:,2))])
     xlim(win)
     colormap(jet)
-    colorbar
+    cb = colorbar;
+    ylabel(cb,'Displacement (\mum)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
     
     ax42 = axes('Position',[0.030 0.07 0.95 0.25]);
     % pn2 = imagesc(1000*tt,arfidata.axial(min(top)-10:max(bot)+10),mf_panel,[-2 15]);
     pn2 = imagesc(1000*tt,arfidata.axial(min(top)-10:max(bot)+10),raw_vel_panel,[-5 5]);
-    xlabel('Time (ms)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.fig)
-    ylabel('Axial (mm)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.fig)
+    xlabel('Time (ms)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+    ylabel('Axial (mm)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
     set(ax42,'color',dispPar.ax,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','TickLength',[0 0.025],'xgrid','on','UserData','velpanel_ax')
     % set(pn2,'AlphaData',~isnan(mf_panel))
     set(pn2,'AlphaData',~isnan(raw_vel_panel))
     ylim([min(gate(:,1)) max(gate(:,2))])
     xlim(win)
     colormap(jet)
-    colorbar
+    cb = colorbar;
+    ylabel(cb,'Velocity (cm/s)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
     
     if ~isempty(ecgdata)
         ax43 = axes('Position',[0.030 0.40 0.90 0.20]);
         plot(1000*ecgdata.arfi(:,1),ecgdata.arfi(:,2),'linewidth',5);
-        xlabel('Time (ms)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.fig)
+        xlabel('Time (ms)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
         set(ax43,'color',[0.15 0.15 0.15],'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','TickLength',[0 0.025],'yTickLabel',[],'xgrid','on','UserData','ecgpanel_ax')
         xlim(win)
     end
