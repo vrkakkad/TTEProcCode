@@ -1,4 +1,4 @@
-function runTTE_res(DataDir,fidx,type) 
+function runTTE_res(DataDir,type,fidx) 
     % Type - ARFI or SWEI
 
 close all
@@ -15,16 +15,20 @@ end
 if ~exist('DataDir','var')
     DataDir = pwd;
 end
-if ~exist('fidx','var')
-    fidx = 1;
-end
-
 if ~exist('type','var')
     type = 'ARFI';
     str = sprintf('Type not specified. Defaulting to ARFI');
     warning(str);
 end
-cd(DataDir)
+if ~exist('fidx','var')
+    fidx = 1;
+end
+
+if ~exist(fullfile(DataDir,'res'),'dir')
+    error('res directory does not exist')
+end
+
+cd(fullfile(DataDir,'res'))
 
 list = dir(strcat('res_',lower(type),'*')); % get timeStamp based on existance of ARFI par files
 if size(list,1)<fidx
@@ -40,6 +44,7 @@ else
 end
 
 load(strcat('res_',lower(type),'_',timeStamp,'.mat'));
+cd ..
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Inputs to dispTTE
 options.motionFilter = struct(...
@@ -57,14 +62,14 @@ options.motionFilter.timeRange_pre = options.motionFilter.timeRange_push + optio
 options.display = struct(...
     'theme', 'dark' ... % light/dark
     ,'IQrange',[-40 0] ...
-    ,'gateWidth', 10 ...
+    ,'gateWidth', 5 ...
     ,'gateOffset', 0 ...
     ,'n_pts', 3 ...
-    ,'medfilt',[1 0.15] ... % median filter parameters - [axial (mm) acqTime (s)]
+    ,'medfilt',[2.5 0.15] ... % median filter parameters - [axial (mm) acqTime (s)]
     ,'cc_filt', 1 ...
-    ,'cc_thresh', 0.995 ...
+    ,'cc_thresh', 0.995...
     ... % ARFI Display Parameters
-    ,'disprange',[-1 8] ...
+    ,'disprange',[-2 10] ...
     ,'normalize', 0 ...
     ,'t_disp_push', 0.5 ...
     ,'extras', 0 ... % [-1] - Suppress all extra plots; [0,1] - Asks for User Input on which plots to display

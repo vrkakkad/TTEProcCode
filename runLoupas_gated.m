@@ -69,10 +69,13 @@ fdemest = zeros(size(Iup));
 %     Qref = squeeze(Qup(:,i,1));
 %     u(:,i,:) = loupasParallel(Iref,Qref,squeeze(Iup(:,i,:)),squeeze(Qup(:,i,:)),N,kasai_avg,fdem_vec,fc_vec,kasai_scale);
 % end
+
 for i = 1:size(Iup,2)
     if par.ref_idx ~=-1
         Iref = squeeze(Iup(:,i,par.ref_idx));
         Qref = squeeze(Qup(:,i,par.ref_idx));
+%         Iref = squeeze(Iup(:,1,par.ref_idx));
+%         Qref = squeeze(Qup(:,1,par.ref_idx));
     end
 %     u(:,i,:) = loupasParallel(Iref,Qref,squeeze(Iup(:,i,:)),squeeze(Qup(:,i,:)),N,kasai_avg,fdem_vec,fc_vec,kasai_scale);
     if i==1

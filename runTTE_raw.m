@@ -1,4 +1,4 @@
-function runTTE_raw(DataDir,fidx,stream_idx)
+function runTTE_raw(DataDir,stream,fidx)
 
 close all
 
@@ -7,19 +7,19 @@ close all
 if ~exist('DataDir','var')
     DataDir = pwd;
 end
+if ~exist('stream','var')
+    stream = 'RT';
+end
 if ~exist('fidx','var')
     fidx = -1;
-end
-if ~exist('stream_idx','var')
-    stream_idx = 1;
 end
 
 % Sanity Checks
 [status, hostname] = system('hostname');
 hostname = deblank(hostname);
-if (stream_idx ==3 && strcmpi(hostname,'patcuda1'))
-    stream_idx = 2; 
-    str = sprintf('Cluster mode [3] not supported on %s. Reverting to review mode [2]\n',hostname);
+if (strcmpi(stream,'cluster') && strcmpi(hostname,'patcuda1'))
+    stream = 'review'; 
+    str = sprintf('Cluster mode not supported on %s. Reverting to review mode\n',hostname);
     warning(str)
 end
 clear status hostname
@@ -27,18 +27,18 @@ clear status hostname
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Inputs to procTTE
 options.dataflow = struct(...
-    'stream', stream_idx ... % [1] - realTime || [2] - review || [3] - cluster 
+    'stream', stream ... % RT (realTime) || review || cluster 
     ,'display', 0 ...
     ,'ecg_test', 0 ...
     ,'ARFI', 1 ...
     ,'SWEI', 0 ...
     ,'oneSided', 1 ...
     ,'setID',fidx ...
-    ,'saveRes', 1 ...
+    ,'saveRes', 0 ...
     );
 options.dispEst = struct(...
     'method','Loupas'...
-    ,'ref_type','Progressive' ...   % anchored/progressive
+    ,'ref_type','Progressive' ...   % anchored || progressive
     ,'ref_idx',[] ...
     ,'nreverb', 2 ...         % Not having the correct nreverb could mess up displacements when using progressive ref_type
     ,'interpFactor', 5 ...
@@ -51,7 +51,7 @@ options.dispEst = struct(...
 %% Inputs to dispTTE
 options.motionFilter = struct(...
     'enable', 1 ...
-    ,'method','Both' ... % Polynomial/LPF/Both
+    ,'method','Both' ... % Polynomial || LPF || Both
     ... % Parameters for Polynomial filter
     ,'order', 2 ...
     ,'timeRange_push', [-1.5 -1 4.5 5] ... % [-1.5 -1 4.5 5]
@@ -63,17 +63,17 @@ options.motionFilter.timeRange_pre = options.motionFilter.timeRange_push + optio
 
 options.display = struct(...
     'theme', 'dark' ... % light/dark
-    ,'IQrange',[-40 0] ...
-    ,'gateWidth', 10 ...
+    ,'IQrange',[-30 0] ...
+    ,'gateWidth', 15 ...
     ,'gateOffset', 0 ...
     ,'n_pts', 5 ...
     ,'medfilt',[1 0.15] ... % median filter parameters - [axial (mm) acqTime (s)]
     ,'cc_filt', 1 ...
-    ,'cc_thresh', 0.995 ...
+    ,'cc_thresh', 0.990 ...
     ... % ARFI Display Parameters
-    ,'disprange',[-2 10] ...
+    ,'disprange',[ ] ...
     ,'normalize', 0 ...
-    ,'t_disp_push', 0.75 ...
+    ,'t_disp_push', 0.95 ...
     ,'extras', 0 ... % [-1] - Suppress all extra plots || [0] - Asks for User Input on which plots to display
     ... % SWEI Display Parameters
     ,'velrange',[ ] ...
@@ -95,7 +95,7 @@ options.calcSWS = struct(...
 % Check input settings
 switch options.dataflow.stream
     
-    case 1 % realTime
+    case 'RT' % realTime
         fprintf(1,'\n%%%%%%%%%%%%%%%%%%%%%% Real Time %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
         options.dataflow.display = 1; fprintf(1,'\nDisplay: On');
         options.dataflow.ecg_test = 0; fprintf(1,'\nECG Test: Off');
@@ -105,15 +105,15 @@ switch options.dataflow.stream
         options.display.gateWidth = 20; fprintf(1,'\nGate Width = %d mm',options.display.gateWidth);
         fprintf(1,'\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%'); fprintf(1,'\n\n');
         
-    case 2 % review
+    case 'review'
         fprintf(1,'\n%%%%%%%%%%%%%%%%%%%%%% Review %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
         options.dataflow.display = 1; fprintf(1,'\nDisplay: On');
-        options.dataflow.ecg_test = 1; fprintf(1,'\nECG Test: On');
+        options.dataflow.ecg_test = 0; fprintf(1,'\nECG Test: Off');
         options.dataflow.saveRes = 0; fprintf(1,'\nSaveRes: Off');
         options.display.extras = 0; fprintf(1,'\nExtras: On [0]');
         fprintf(1,'\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%'); fprintf(1,'\n\n');
         
-    case 3 % cluster
+    case 'cluster'
         fprintf(1,'\n%%%%%%%%%%%%%%%%%%%%%% Cluster %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
         options.dataflow.display = 0; fprintf(1,'\nDisplay: Off');
         options.dataflow.ecg_test = 0; fprintf(1,'\nECG Test: Off');

@@ -14,7 +14,7 @@ cd(DataDir)
 %% Default Input Parameters
 if ~exist('options','var')
     options.dataflow = struct(...
-        'stream', stream_idx ... % [1] - realTime, [2] - review, [3] - cluster
+        'stream', stream ... % RT(realTime) || review || cluster
         ,'display', 1 ...
         ,'ecg_test', 0 ...
         ,'ARFI', 1 ...
@@ -25,7 +25,7 @@ if ~exist('options','var')
         );
     options.dispEst = struct(...
         'method','Loupas'...
-        ,'ref_type','Progressive' ...   % anchored/progressive
+        ,'ref_type','Progressive' ...   % anchored || progressive
         ,'ref_idx',[] ...
         ,'nreverb', 2 ...         % Not having the correct nreverb could mess up displacements when using progressive ref_type
         ,'interpFactor', 5 ...
@@ -112,20 +112,24 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Save time stamped results file
 if (options.dataflow.saveRes && ~options.dataflow.display)
+    dest = fullfile(pwd,'res');
+    if ~exist(dest,'dir')
+        warning('res folder does not exist...creating it')
+        mkdir(dest)
+    end
     fprintf(1,'Saving Res files...\n');
     if options.dataflow.ARFI
         tic
-        resfile = ['res_arfi_' timeStamp '.mat'];
+        resfile = fullfile(dest,strcat('res_arfi_',num2str(timeStamp),'.mat'));
         save(resfile,'bdata','ecgdata','arfidata','options','-v7.3');
         fprintf(1,'Save Time for ARFI = %2.2fs\n',toc)
     end
     if options.dataflow.SWEI
         tic
-        resfile = ['res_swei_' timeStamp '.mat'];
+        resfile = fullfile(dest,strcat('res_swei_',num2str(timeStamp),'.mat'));
         save(resfile,'bdata','ecgdata','sweidata','options','-v7.3');
         fprintf(1,'Save Time for SWEI = %2.2fs\n',toc)
     end
-    
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

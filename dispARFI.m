@@ -64,13 +64,17 @@ dispPar.cmap(end,:) = dispPar.ax;
 
 dispPar.corder = winter(options.display.n_pts);
 
-% Auto displacement range based on quantiles
+% % Auto displacement range based on quantiles
+% if isempty(options.display.disprange)
+%     if (options.motionFilter.enable && (strcmpi(options.motionFilter.method,'Polynomial') || strcmpi(options.motionFilter.method,'Both')))
+%         rng = quantile(arfidata_mf_push.disp(:),[0.25 0.75]);
+%     else
+%         rng = quantile(arfidata.disp(:),[0.05 0.95]);
+%     end
+% end
+
 if isempty(options.display.disprange)
-    if (options.motionFilter.enable && (strcmpi(options.motionFilter.method,'Polynomial') || strcmpi(options.motionFilter.method,'Both')))
-        rng = quantile(arfidata_mf_push.disp(:),[0.25 0.75]);
-    else
-        rng = quantile(arfidata.disp(:),[0.05 0.95]);
-    end
+    rng = [-2 10];
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -100,9 +104,9 @@ for i=1:size(bdata.bimg,3);
         ax12 = axes('Position',[0.45 0.7 0.52 0.2]);
         frame = abs(arfidata.IQ(:,:,1)); % Display first frame only
         frame = db(frame/max(frame(:)));
-        temp = find(arfidata.IQaxial>edge(1)-7.5,1);
+        temp = find(arfidata.IQaxial>edge(1)+5,1);
         if isempty(temp); idx(1) = 1; else idx(1) = temp; end; clear temp
-        temp = find(arfidata.IQaxial>edge(2)+7.5,1);
+        temp = find(arfidata.IQaxial>edge(2)-5,1);
         if isempty(temp); idx(2) = length(arfidata.IQaxial); else idx(2) = temp; end; clear temp
         imagesc(linspace(0,arfidata.acqTime(end),size(arfidata.IQ,2)),arfidata.IQaxial(idx(1):idx(2)),frame(idx(1):idx(2),:),options.display.IQrange)
         clear idx
@@ -163,10 +167,10 @@ end
 %% Incorporate ECG Data into this figure
 if ~isempty(ecgdata)
     samples = zeros(1,nacqT);
-    for i=1:nacqT
-        samples(i) = ecgdata.arfi(find(ecgdata.arfi(:,1)>arfidata.acqTime(i),1,'first'),2);
-    end
     ecgdata.arfi(:,2) = ecgdata.arfi(:,2)/max(ecgdata.arfi(:,2));
+    for i=1:nacqT
+        samples(i) = ecgdata.arfi(find(ecgdata.arfi(:,1)>arfidata.acqTime(i),1,'first')-1,2);
+    end
     
     ax15 = axes('Position',[0.5 0.1 0.4 0.2]);
     plot(ecgdata.arfi(:,1),ecgdata.arfi(:,2),'Linewidth',2);
@@ -212,7 +216,7 @@ end
 if prior_trace
     trace_input = input('\nDo you want to retrace the gate? (y/n) [n]: ','s');
     flatgate_input = input('\nDo you want to use a flat gate? (y/n) [n]: ','s');
-elseif (~prior_trace && options.display.extras ~= -1) 
+elseif (~prior_trace && options.display.extras ~= -1)
     trace_input = input('\nDo you want to trace a depth gate? (y/n) [n]: ','s');
     flatgate_input = 'y';
 end
@@ -326,7 +330,7 @@ if options.display.extras > 0;
     i=1; skip = 0;
     fprintf(1,'\n\nPress Left/Right to move Back/Forward and Space to play through\n')
     
-    while i<nacqT
+    while i<=nacqT
         
         if ~isempty(ecgdata)
             delete(pt); %set(pt,'Visible','off')
@@ -342,7 +346,7 @@ if options.display.extras > 0;
         end
         
         % Extra Fig 1
-        if options.motionFilter.enable
+        if (options.motionFilter.enable && ~strcmpi(options.motionFilter.method,'LPF'))
             plot(arfidata.trackTime(1:par.nref),squeeze(arfidata_mf_pre.disp(idx(i,:),i,1:par.nref)),'.--','Parent',ax16)
             hold(ax16,'on')
             plot(arfidata.trackTime(par.nref+1:end),squeeze(arfidata_mf_push.disp(idx(i,:),i,par.nref+1:end)),'.--','Parent',ax16)
@@ -350,7 +354,7 @@ if options.display.extras > 0;
         else
             plot(arfidata.trackTime,squeeze(arfidata.disp(idx(i,:),i,:)),'.--','Parent',ax16)
             hold(ax16,'on')
-            ylim(ax16,rng)
+            ylim(ax16,[-200 200])
         end
         plot(arfidata.trackTime(idx_pre(i))*ones(1,10),linspace(-300,300,10),'y','linewidth',2,'Parent',ax16)
         plot(arfidata.trackTime(idx_push(i))*ones(1,10),linspace(-300,300,10),'g','linewidth',2,'Parent',ax16)
@@ -370,6 +374,10 @@ if options.display.extras > 0;
         
         % Extra Fig 2
         if options.display.extras > 1
+            
+            % Calculate alphaData mask
+            filt = squeeze(mask(:,i,:));
+            alphaMask = ones(size(filt)); alphaMask(filt==0) = 0.5;
             
             fig2 = figure(2);
             set(fig2,'Name','IQ Traces & Correlation Map','UserData','extra_fig1')
@@ -398,20 +406,22 @@ if options.display.extras > 0;
             for j=1:ntrackT; plot(axial_up,offset*(j-1)-temp(:,j)','b'); hold on; end; view(90,90); hold on;
             plot(gate(i,1)*ones(1,100),linspace(-offset*10,offset*ntrackT,100),'g','linewidth',3);
             plot(gate(i,2)*ones(1,100),linspace(-offset*10,offset*ntrackT,100),'g','linewidth',3);
-            xlim(edge);ylim([-50 250])
+            xlim(edge);ylim([-100 300])
             title(sprintf('Raw IQ: %d (t = %2.2f s)',i,arfidata.acqTime(i)),'fontsize',dispPar.fsize,'fontweight','bold','color',dispPar.txt);
             xlabel('Axial (mm)','fontsize',dispPar.fsize,'fontweight','bold');ylabel('Tracks','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt);set(gca,'YTickLabel',[])
             set(ax21,'color',dispPar.ax + 0.25,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','Userdata','IQtraces_ax')
             
             ax22= subplot(122); cla(ax22);
-            imagesc(arfidata.trackTime,arfidata.axial,squeeze(arfidata.cc(:,i,:)),[options.display.cc_thresh 1]);cb = colorbar; set(cb,'Color',dispPar.txt,'FontWeight','bold','UserData','cc_cb')
+            im1 = imagesc(arfidata.trackTime,arfidata.axial,double(squeeze(arfidata.cc(:,i,:))),[0.99 1]);cb = colorbar; set(cb,'Color',dispPar.txt,'FontWeight','bold','UserData','cc_cb')
             title(sprintf('%s Correlation Coefficients',options.dispEst.ref_type),'fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt);grid on;colormap(jet)
             hold on;plot(linspace(-25,25,100),gate(i,1)*ones(1,100),'g','linewidth',3);plot(linspace(-25,25,100),gate(i,2)*ones(1,100),'g','linewidth',3)
             xlabel('Track Time (ms)','fontsize',dispPar.fsize,'fontweight','bold');ylabel('Axial (mm)','fontsize',dispPar.fsize,'fontweight','bold')
+            opengl software
+            set(im1,'alphaData',alphaMask)
             set(ax22,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','UserData','ccmap_ax')
             
             raw = squeeze(arfidata.disp(:,i,:));
-            mf = zeros(size(raw));
+            mf = nan(size(raw));
             if options.motionFilter.enable
                 mf(:,1:par.nref) = squeeze(arfidata_mf_pre.disp(:,i,1:par.nref));
                 mf(:,par.nref+1:end) = squeeze(arfidata_mf_push.disp(:,i,par.nref+1:end));
@@ -427,7 +437,7 @@ if options.display.extras > 0;
             set(fig3,'Color',dispPar.fig)
             
             ax31 = subplot(121); cla(ax31);
-            imagesc(arfidata.trackTime,arfidata.axial,raw,[-150 150]);cb2 = colorbar; set(cb2,'Color',dispPar.txt,'FontWeight','bold','UserData','disp_cb_extra')
+            im2 = imagesc(arfidata.trackTime,arfidata.axial,raw,[-150 150]);cb2 = colorbar; set(cb2,'Color',dispPar.txt,'FontWeight','bold','UserData','disp_cb_extra')
             xlabel('Track Time (ms)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt);
             ylabel('Axial (mm)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt);
             title(sprintf('Raw Displacement: Push %d\n Time = %1.2f s',i,arfidata.acqTime(i)),'fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt);
@@ -436,10 +446,11 @@ if options.display.extras > 0;
             plot(options.display.t_disp_push*ones(1,length(arfidata.axial)),arfidata.axial,'g','linewidth',2)
             l1 = plot(arfidata.trackTime,gate(i,1)*ones(1,length(arfidata.trackTime)),'g-','linewidth',2);
             l2 = plot(arfidata.trackTime,gate(i,2)*ones(1,length(arfidata.trackTime)),'g-','linewidth',2);
+            set(im2,'alphaData',alphaMask)
             set(ax31,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','UserData','rawdisp_ax')
             
             ax32 = subplot(122); cla(ax32)
-            imagesc(arfidata.trackTime,arfidata.axial,mf,rng);cb3 = colorbar; set(cb3,'Color',dispPar.txt,'FontWeight','bold')
+            im3 = imagesc(arfidata.trackTime,arfidata.axial,mf,rng);cb3 = colorbar; set(cb3,'Color',dispPar.txt,'FontWeight','bold')
             xlabel('Track Time (ms)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt);
             ylabel('Axial (mm)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt);
             title(sprintf('MF Displacement: Push %d\n Time = %1.2f s',i,arfidata.acqTime(i)),'fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt);
@@ -448,6 +459,7 @@ if options.display.extras > 0;
             plot(options.display.t_disp_push*ones(1,length(arfidata.axial)),arfidata.axial,'g','linewidth',2)
             l3 = plot(arfidata.trackTime,gate(i,1)*ones(1,length(arfidata.trackTime)),'g-','linewidth',2);
             l4 = plot(arfidata.trackTime,gate(i,2)*ones(1,length(arfidata.trackTime)),'g-','linewidth',2);
+            set(im3,'alphaData',alphaMask)
             set(ax32,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','UserData','mfdisp_ax')
         end
         
@@ -514,11 +526,12 @@ end
 if strcmpi(extra3_input,'y')
     track_dt = median(diff(arfidata.trackTime))*1e-3;
     acq_dt = median(diff(arfidata.acqTime));
-    tt = [0:track_dt:acq_dt+arfidata.acqTime(end)];
+    tt = [0:track_dt:acq_dt+arfidata.acqTime(end)]; %ms
     
     raw = arfidata.disp;
     raw_vel = nan(size(raw));
     raw_vel(:,:,1:size(raw,3)-1) = 100.*(1e-6.*diff(raw,1,3))./(track_dt);
+    raw_vel(:,:,end) = raw_vel(:,:,end-1);
     for i=1:nacqT;raw_vel(:,i,:) = medfilt2(squeeze(raw_vel(:,i,:)),[1 5]);end
     raw(mask==0) = nan;
     raw_vel(mask==0) = nan;
@@ -535,62 +548,70 @@ if strcmpi(extra3_input,'y')
     for i=1:nacqT
         top(i) = find(arfidata.axial>gate(i,1),1);
         bot(i) = find(arfidata.axial>gate(i,2),1);
-        raw([top(i)-2:top(i)],:,i) = inf;
-        raw([bot(i):bot(i)+2],:,i) = inf;
+        raw([top(i)-1:top(i)+1],:,i) = inf;
+        raw([bot(i)-1:bot(i)+1],:,i) = inf;
         
-        raw_vel([top(i)-1:top(i)],:,i) = inf;
-        raw_vel([bot(i):bot(i)+1],:,i) = inf;
-        
-        %     mf([top(i)-1:top(i)],:,i) = inf;
-        %     mf([bot(i):bot(i)+1],:,i) = inf;
+        raw_vel([top(i)-1:top(i)+1],:,i) = inf;
+        raw_vel([bot(i)-1:bot(i)+1],:,i) = inf;
     end
     
     raw_panel = nan(size(arfidata.disp,1),length(tt));
     raw_vel_panel = nan(size(arfidata.disp,1),length(tt));
-    % mf_panel = nan(size(arfidata.disp,1),length(tt));
+    shift_disp = zeros(size(raw,1),size(raw,2));
+    shift_vel = zeros(size(raw_vel,1),size(raw_vel,2));
+    start_idx = nan(1,nacqT);
     
-    for i=1:nacqT
-        start_idx = find(tt>arfidata.acqTime(i),1);
-        raw_panel(:,start_idx:start_idx+size(raw,2)-1) = raw(:,:,i);
-        raw_vel_panel(:,start_idx:start_idx+size(raw_vel,2)-1) = raw_vel(:,:,i);
-        %     mf_panel(:,start_idx:start_idx+size(mf,2)-1) = mf(:,:,i);
+    % Initialize
+    start_idx(1) = 1;
+    raw_panel(:,start_idx(1):start_idx(1)+size(raw,2)-1) = raw(:,:,1) - shift_disp;
+    raw_vel_panel(:,start_idx(1):start_idx(1)+size(raw_vel,2)-1) = raw_vel(:,:,1) - shift_vel;
+
+    for i=2:nacqT
+        start_idx(i) = find(tt>arfidata.acqTime(i),1)-1;
+        raw_panel(:,start_idx(i):start_idx(i)+size(raw,2)-1) = raw(:,:,i) - shift_disp;
+        if ((start_idx(i) - start_idx(i-1)) == ntrackT && i<nacqT)
+            temp = raw(:,1,i+1) - raw_panel(:,start_idx(i)+size(raw,2)-1); temp(isnan(temp)) = 0; shift_disp = repmat(temp,[1 ntrackT]);
+        end
+        raw_vel_panel(:,start_idx(i):start_idx(i)+size(raw_vel,2)-1) = raw_vel(:,:,i) - shift_vel;
+        if ((start_idx(i) - start_idx(i-1)) == ntrackT && i<nacqT)
+            temp = raw_vel(:,1,i+1) - raw_vel_panel(:,start_idx(i)+size(raw,2)-1); temp(isnan(temp)) = 0; shift_vel = repmat(temp,[1 ntrackT]);
+        end
     end
     
     raw_panel = raw_panel(min(top)-10:max(bot)+10,:);
     raw_vel_panel = raw_vel_panel(min(top)-10:max(bot)+10,:);
-    % mf_panel = mf_panel(min(top)-10:max(bot)+10,:);
     
     width = 500; % ms
     delta = 50; % ms
+    tt = tt*1000;
     win = [0 width];
+    win_idx = [find(tt>win(1),1,'first'):find(tt>win(2),1,'first')];
     
     close all
     fig4 = figure(4);
-    set(fig4,'units','normalized','outerposition',[0 0 1 1])
-    set(fig4,'Color',dispPar.fig)
+    set(fig4,'units','normalized','outerposition',[0 0 1 1],'Color',dispPar.fig)
     
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Functionize this
     ax41 = axes('Position',[0.030 0.67 0.95 0.25]);
-    pn1 = imagesc(1000*tt,arfidata.axial(min(top)-10:max(bot)+10),raw_panel,[-200 200]);
+    pn1 = imagesc(tt(win_idx),arfidata.axial(min(top)-10:max(bot)+10),raw_panel(:,win_idx),[-200 200]);
     xlabel('Time (ms)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
     ylabel('Axial (mm)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
     set(ax41,'color',dispPar.ax,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','TickLength',[0 0.025],'xgrid','on','UserData','disppanel_ax')
-    set(pn1,'AlphaData',~isnan(raw_panel))
-    ylim([min(gate(:,1)) max(gate(:,2))])
-    xlim(win)
+    set(pn1,'AlphaData',~isnan(raw_panel(:,win_idx)))
+    ylim([min(gate(:,1))-1 max(gate(:,2))+1])
     colormap(jet)
     cb = colorbar;
     ylabel(cb,'Displacement (\mum)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
     
     ax42 = axes('Position',[0.030 0.07 0.95 0.25]);
     % pn2 = imagesc(1000*tt,arfidata.axial(min(top)-10:max(bot)+10),mf_panel,[-2 15]);
-    pn2 = imagesc(1000*tt,arfidata.axial(min(top)-10:max(bot)+10),raw_vel_panel,[-5 5]);
+    pn2 = imagesc(tt(win_idx),arfidata.axial(min(top)-10:max(bot)+10),raw_vel_panel(:,win_idx),[-5 5]);
     xlabel('Time (ms)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
     ylabel('Axial (mm)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
     set(ax42,'color',dispPar.ax,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','TickLength',[0 0.025],'xgrid','on','UserData','velpanel_ax')
     % set(pn2,'AlphaData',~isnan(mf_panel))
-    set(pn2,'AlphaData',~isnan(raw_vel_panel))
-    ylim([min(gate(:,1)) max(gate(:,2))])
-    xlim(win)
+    set(pn2,'AlphaData',~isnan(raw_vel_panel(:,win_idx)))
+    ylim([min(gate(:,1))-1 max(gate(:,2))+1])
     colormap(jet)
     cb = colorbar;
     ylabel(cb,'Velocity (cm/s)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
@@ -602,67 +623,148 @@ if strcmpi(extra3_input,'y')
         set(ax43,'color',[0.15 0.15 0.15],'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','TickLength',[0 0.025],'yTickLabel',[],'xgrid','on','UserData','ecgpanel_ax')
         xlim(win)
     end
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Functionize this
+    
     val = 0;
     while val~=32
         if val==28
             win = [win(1)-delta win(2)-delta];
+            if win(1)<0;win = [0 width];end
+            if win(2)>arfidata.acqTime*1000;win = [arfidata.acqTime*1000-width arfidata.acqTime*1000];end
+            win_idx = [find(tt>win(1),1,'first'):find(tt>win(2),1,'first')];
+            
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Functionize this
+            ax41 = axes('Position',[0.030 0.67 0.95 0.25]);
+            pn1 = imagesc(tt(win_idx),arfidata.axial(min(top)-10:max(bot)+10),raw_panel(:,win_idx),[-200 200]);
+            xlabel('Time (ms)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+            ylabel('Axial (mm)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+            set(ax41,'color',dispPar.ax,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','TickLength',[0 0.025],'xgrid','on','UserData','disppanel_ax')
+            set(pn1,'AlphaData',~isnan(raw_panel(:,win_idx)))
+            ylim([min(gate(:,1))-1 max(gate(:,2))+1])
+            colormap(jet)
+            cb = colorbar;
+            ylabel(cb,'Displacement (\mum)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+            
+            ax42 = axes('Position',[0.030 0.07 0.95 0.25]);
+            % pn2 = imagesc(1000*tt,arfidata.axial(min(top)-10:max(bot)+10),mf_panel,[-2 15]);
+            pn2 = imagesc(tt(win_idx),arfidata.axial(min(top)-10:max(bot)+10),raw_vel_panel(:,win_idx),[-5 5]);
+            xlabel('Time (ms)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+            ylabel('Axial (mm)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+            set(ax42,'color',dispPar.ax,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','TickLength',[0 0.025],'xgrid','on','UserData','velpanel_ax')
+            % set(pn2,'AlphaData',~isnan(mf_panel))
+            set(pn2,'AlphaData',~isnan(raw_vel_panel(:,win_idx)))
+            ylim([min(gate(:,1))-2.5 max(gate(:,2))+2.5])
+            colormap(jet)
+            cb = colorbar;
+            ylabel(cb,'Velocity (cm/s)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+            
+            if ~isempty(ecgdata)
+                ax43 = axes('Position',[0.030 0.40 0.90 0.20]);
+                plot(1000*ecgdata.arfi(:,1),ecgdata.arfi(:,2),'linewidth',5);
+                xlabel('Time (ms)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+                set(ax43,'color',[0.15 0.15 0.15],'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','TickLength',[0 0.025],'yTickLabel',[],'xgrid','on','UserData','ecgpanel_ax')
+                xlim(win)
+            end
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Functionize this
+            
         end
         if val==29
             win = [win(1)+delta win(2)+delta];
+            if win(1)<0;win = [0 width];end
+            if win(2)>arfidata.acqTime*1000;win = [arfidata.acqTime*1000-width arfidata.acqTime*1000];end
+            win_idx = [find(tt>win(1),1,'first'):find(tt>win(2),1,'first')];
+            
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Functionize this
+            ax41 = axes('Position',[0.030 0.67 0.95 0.25]);
+            pn1 = imagesc(tt(win_idx),arfidata.axial(min(top)-10:max(bot)+10),raw_panel(:,win_idx),[-200 200]);
+            xlabel('Time (ms)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+            ylabel('Axial (mm)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+            set(ax41,'color',dispPar.ax,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','TickLength',[0 0.025],'xgrid','on','UserData','disppanel_ax')
+            set(pn1,'AlphaData',~isnan(raw_panel(:,win_idx)))
+            ylim([min(gate(:,1))-1 max(gate(:,2))+1])
+            colormap(jet)
+            cb = colorbar;
+            ylabel(cb,'Displacement (\mum)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+            
+            ax42 = axes('Position',[0.030 0.07 0.95 0.25]);
+            % pn2 = imagesc(1000*tt,arfidata.axial(min(top)-10:max(bot)+10),mf_panel,[-2 15]);
+            pn2 = imagesc(tt(win_idx),arfidata.axial(min(top)-10:max(bot)+10),raw_vel_panel(:,win_idx),[-5 5]);
+            xlabel('Time (ms)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+            ylabel('Axial (mm)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+            set(ax42,'color',dispPar.ax,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','TickLength',[0 0.025],'xgrid','on','UserData','velpanel_ax')
+            % set(pn2,'AlphaData',~isnan(mf_panel))
+            set(pn2,'AlphaData',~isnan(raw_vel_panel(:,win_idx)))
+            ylim([min(gate(:,1))-1 max(gate(:,2))+1])
+            colormap(jet)
+            cb = colorbar;
+            ylabel(cb,'Velocity (cm/s)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+            
+            if ~isempty(ecgdata)
+                ax43 = axes('Position',[0.030 0.40 0.90 0.20]);
+                plot(1000*ecgdata.arfi(:,1),ecgdata.arfi(:,2),'linewidth',5);
+                xlabel('Time (ms)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+                set(ax43,'color',[0.15 0.15 0.15],'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','TickLength',[0 0.025],'yTickLabel',[],'xgrid','on','UserData','ecgpanel_ax')
+                xlim(win)
+            end
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Functionize this
         end
-        if win(1)<0;win = [0 width];end
-        if win(2)>arfidata.acqTime*1000;win = [arfidata.acqTime*1000-width arfidata.acqTime*1000];end
-        set(ax41,'xlim',win); set(ax42,'xlim',win);
-        if ~isempty(ecgdata); set(ax43,'xlim',win); end
+        
         w = waitforbuttonpress;
         val = double(get(gcf,'CurrentCharacter'));
+        delete(ax41),delete(ax42),delete(ax43)
     end
+    close 4
 end
 
-%%
-% % Extra Fig
-% if options.display.extras > 0
-%     figure(101)
-%     if isunix
-%         set(101,'Position',[1210 750 1909 624]);
-%     elseif ispc
-%         set(101,'units','normalized','outerposition',[0 0 1 1])
-%     end
-%     set(101,'Color',dispPar.fig)
-%
-%     temp_gate = zeros(ntrackT*nacqT,2);
-%     for i=1:nacqT
-%         temp_gate(1+ntrackT*(i-1):ntrackT*i,:) = repmat(gate(i,:),ntrackT,1);
-%     end
-%     disps = reshape(permute(arfidata.disp,[1 3 2]),size(arfidata.disp,1),[]);
-%     vels = reshape(permute(diff(arfidata.disp,1,3),[1 3 2]),size(arfidata.disp,1),[]);
-%
-%     rng = quantile(arfidata.disp(:),[0.01 0.99]);
-%
-%     im1 = imagesc(linspace(0,arfidata.acqTime(end),nacqT*ntrackT),arfidata.axial,disps,rng);colorbar
-%     hold on
-%     plot(linspace(0,arfidata.acqTime(end),nacqT*ntrackT),temp_gate(:,1),dispPar.txt,'linewidth',5)
-%     plot(linspace(0,arfidata.acqTime(end),nacqT*ntrackT),temp_gate(:,2),dispPar.txt,'linewidth',5)
-%     set(gca,'color',dispPar.ax);
-%     set(im1,'alphaData',~isnan(disps))
-%
-%     figure(102)
-%     if isunix
-%         set(102,'Position',[1210 750 1909 624]);
-%     elseif ispc
-%         set(102,'units','normalized','outerposition',[0 0 1 1])
-%     end
-%     set(102,'Color',dispPar.fig)
-%
-%     im2 = imagesc(linspace(0,arfidata.acqTime(end),nacqT*ntrackT),arfidata.axial,vels,rng/25);colorbar
-%     hold on
-%     plot(linspace(0,arfidata.acqTime(end),nacqT*ntrackT),temp_gate(:,1),dispPar.txt,'linewidth',5)
-%     plot(linspace(0,arfidata.acqTime(end),nacqT*ntrackT),temp_gate(:,2),dispPar.txt,'linewidth',5)
-%     set(gca,'color',dispPar.ax);
-%     set(im2,'alphaData',~isnan(vels))
-% end
-%
-% figure(103);set(103,'Position',[1210 390 1909 624])
-% imagesc([],arfidata.axial,reshape(permute(diff(diff(arfidata.disp,1,3),1,3),[1 3 2]),size(arfidata.disp,1),[]),rng/100);colorbar
+%% Extract Data starting at first QRS
 
+test = ecgdata.arfi(1:floor(end/2),2);
+test = test/max(test);
+idx_start = find(arfidata.acqTime>ecgdata.arfi(find(test>0.95,1,'first'),1),1,'first')-1;
+t_start = arfidata.acqTime(idx_start);
+ecg = nan(size(ecgdata.arfi,1),2);
+ecg(:,1) = ecgdata.arfi(:,1);
+temp = ecgdata.arfi(find(ecgdata.arfi(:,1)>t_start,1,'first'):end,2);
+ecg(1:size(temp,1),2) = temp;
+pre_seg = nan(1,nacqT); push_seg = pre_seg;
+pre_seg(1:nacqT-idx_start+1) = pre_trace(idx_start:end);
+push_seg(1:nacqT-idx_start+1) = push_trace(idx_start:end);
+acqTime = arfidata.acqTime;
+
+figure
+set(gcf,'color',dispPar.fig)
+subplot(211);
+plot(acqTime,pre_seg,'-yo','linewidth',3,'MarkerFaceColor','k');
+hold(gca,'on')
+plot(acqTime,push_seg,'-ro','linewidth',3,'MarkerFaceColor','k');
+xlabel('Acquisition Time (s)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt);
+ylabel('Displacement (\mum)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt);
+title(sprintf('Axially Averaged ARFI Displacements\n(within Depth Gate)'),'fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+ylim([-2 10])
+xlim([0 max(acqTime)])
+grid on
+set(gca,'Color',dispPar.ax,'ColorOrder',dispPar.corder,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','UserData','res_ax');
+hold(gca,'off')
+
+subplot(212);
+plot(ecg(:,1),ecg(:,2),'Linewidth',2);
+hold(gca,'on')
+plot(acqTime(idx_start:end)-t_start,samples(idx_start:end),'gx','MarkerSize',8)
+xlim([0 max(acqTime)])
+title('ECG Trace','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+xlabel('Acquisition Time (s)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+set(gca,'color',dispPar.ax,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'yTickLabel',[],'fontweight','bold','xgrid','on','gridLineStyle','--','Userdata','ecg_ax')
+hold(gca,'off')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+keyboard
+
+dest = fullfile(pwd,'align');
+if ~exist(dest,'dir')
+    warning('align folder does not exist...creating it')
+    mkdir(dest)
+end
+fprintf(1,'Saving aligned files...\n');
+alignfile = fullfile(dest,strcat('align_arfi_',num2str(options.timeStamp),'.mat'));
+
+save(alignfile,'acqTime','pre_seg','push_seg','ecg','dispPar','idx_start','t_start','samples','-v7.3');
+
