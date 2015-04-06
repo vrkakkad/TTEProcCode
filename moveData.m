@@ -75,7 +75,7 @@ if strcmpi(src,'V:\Program Files\Siemens\syngo\Bedrock\Startup\')
         ecgdata(:,1) = single(time); data = single(data);
         ecgdata(:,2) = data(:,1);
         % Filter ECG Data to remove interference with scanner triggers
-        [B A] = butter(2,1/2500); 
+        [B A] = butter(2,50/fs); 
         data(:,2) = medfilt1(double(data(:,2)),10);
         ecgdata(:,3) = single(filtfilt(B,A,double(data(:,2))));
         save(strcat(dest,'\ECG_data_',timestamp_arfi),'ecgdata');

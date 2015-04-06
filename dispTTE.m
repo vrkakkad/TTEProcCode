@@ -1,4 +1,4 @@
-function dispTTE(ecgdata,bdata,arfidata,arfi_par,sweidata,swei_par,options,timeStamp)
+function dispTTE(bdata,arfidata,arfi_par,sweidata,swei_par,options,timeStamp)
 
 %% Default Input Parameters
 if ~isfield(options,'motionFilter')
@@ -72,21 +72,7 @@ if options.dataflow.ARFI
         arfidata_mf_pre = [];
         arfidata_mf_push = [];
     end
-    [arfidata.traced_gate] = dispARFI(ecgdata,bdata,arfidata,arfidata_mf_pre,arfidata_mf_push,options,arfi_par);
-        
-    % Auto Set Range
-    if (isempty(options.display.disprange) && ishandle(1))
-        set(0, 'currentfigure', 1);
-        h = get(1,'Children'); res_ax = findobj('UserData','res_ax');
-        hh = get(res_ax,'Children');
-        push_trace = get(hh(1),'ydata');
-        pre_trace = get(hh(2),'ydata');
-        
-        if min(pre_trace)>=0;low = 0.75*min(pre_trace);else;low = 1.25*min(pre_trace);end
-        high = 1.25*max(push_trace);
-        setRange([low high])
-    end
-    
+    [arfidata.traced_gate] = dispARFI(bdata,arfidata,arfidata_mf_pre,arfidata_mf_push,options,arfi_par);
 end
 
 if options.dataflow.SWEI
@@ -97,7 +83,7 @@ if options.dataflow.SWEI
         sweidata_mf_pre = [];
         sweidata_mf_push = [];
     end
-    [sweidata.traced_gate] = dispSWEI(ecgdata,bdata,sweidata,sweidata_mf_pre,sweidata_mf_push,options,swei_par);
+    [sweidata.traced_gate] = dispSWEI(bdata,sweidata,sweidata_mf_pre,sweidata_mf_push,options,swei_par);
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -115,7 +101,7 @@ if options.dataflow.ARFI
         fprintf(1,'Saving Res files...\n');
         tic
         resfile = fullfile(dest,strcat('res_arfi_',num2str(timeStamp),'.mat'));
-        save(resfile,'bdata','ecgdata','arfidata','options','-v7.3');
+        save(resfile,'bdata','arfidata','options','-v7.3');
         fprintf(1,'Save Time for ARFI = %2.2fs\n',toc)
     end
 end
@@ -132,7 +118,7 @@ if options.dataflow.SWEI
         fprintf(1,'Saving Res files...\n');
         tic
         resfile = fullfile(dest,strcat('res_swei_',num2str(timeStamp),'.mat'));
-        save(resfile,'bdata','ecgdata','sweidata','options','-v7.3');
+        save(resfile,'bdata','sweidata','options','-v7.3');
         fprintf(1,'Save Time for SWEI = %2.2fs\n',toc)
     end
 end

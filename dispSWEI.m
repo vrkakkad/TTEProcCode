@@ -1,4 +1,4 @@
-function [traced_gate,trace_flag] = dispSWEI(ecgdata,bdata,sweidata,sweidata_mf_pre,sweidata_mf_push,options,par)
+function [traced_gate] = dispSWEI(bdata,sweidata,sweidata_mf_pre,sweidata_mf_push,options,par)
 
 %% Check for existance of traced gate
 if isfield(sweidata,'traced_gate') && ~isempty(sweidata.traced_gate)
@@ -182,21 +182,20 @@ for i=1:nacqT
     gate_idx(i,:) = [find(sweidata.axial>gate(i,1),1,'first') find(sweidata.axial<gate(i,2),1,'last')];
 end
 
+keyboard
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Incorporate ECG Data into this figure
-if ~isempty(ecgdata)
+if ~isempty(sweidata.ecg)
     samples = zeros(1,size(sweidata.disp,3));
     for i=1:nacqT
-        samples(i) = ecgdata.swei(find(ecgdata.swei(:,1)>sweidata.acqTime(i),1,'first'),2);
-    end
-    ecgdata.swei(:,2) = ecgdata.swei(:,2)/max(ecgdata.swei(:,2));
-    
+        samples(i) = sweidata.ecg(find(sweidata.ecg(:,1)>sweidata.acqTime(i),1,'first'),2);
+    end    
     if options.calcSWS.enable
         ax15 = axes('Position',[0.5 0.1 0.4 0.2]);
     else
         ax15 = axes('Position',[0.5 0.25 0.4 0.2]);
     end
-    plot(ecgdata.swei(:,1),ecgdata.swei(:,2),'Linewidth',2);
+    plot(sweidata.ecg(:,1),sweidata.ecg(:,2),'Linewidth',2);
     hold(ax15,'on')
     plot(sweidata.acqTime,samples,'gx','MarkerSize',8)
     pt = plot(sweidata.acqTime(1),samples(1),'ro','Parent',ax15,'Markersize',10,'Markerfacecolor','r');

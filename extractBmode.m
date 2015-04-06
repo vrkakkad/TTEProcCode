@@ -1,14 +1,12 @@
-function [bdata,bmodeSave] = extractBmode(timeStamp)
+function bdata = extractBmode(timeStamp)
 
 bmodeParFname = sprintf('SWIF_BModeOutputImageDims0_%s.txt', timeStamp);
 bmodeFname = sprintf('SWIF_BModeOutputImage0_%s.img', timeStamp);
 
 if ~exist(bmodeParFname, 'file')
-    warning('B-mode parameters file not detected, B-mode images may not have been saved');
-    bmodeSave = 0;
+    warning('B-mode parameters file not detected');
 elseif ~exist(bmodeFname, 'file')
-    warning('B-mode data file not detected, B-mode images may not have been saved');
-    bmodeSave = 0;
+    warning('B-mode data file not detected');
 else
     bmodePar = struct;
     bmodeParFid = fopen(bmodeParFname, 'r');
@@ -63,8 +61,7 @@ else
             0.1*bmodePar.VectorApexAzimZMm,2,(1540/2)/(1e-3*bax(2)-bax(1)));
     end
     
-    bdata.t = 0:1/bmodePar.ChunkRateHz:(size(bimg,3)-1)/bmodePar.ChunkRateHz;
+    bdata.t = 0:1/round(bmodePar.ChunkRateHz):(size(bimg,3)-1)/round(bmodePar.ChunkRateHz);
     bdata.bax = 10*bdata.bax;
     bdata.blat = 10*bdata.blat;
-    bmodeSave = 1;
 end

@@ -73,26 +73,26 @@ options.timeStamp = timeStamp;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Extract B-mode Data
 fprintf(1,'Extracting B-mode Data...\n');
-[bdata,bmodeSave] = extractBmode(timeStamp);
+bdata = extractBmode(timeStamp);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Extract ARFI/SWEI Data
 fprintf(1,'Extracting ARFI/SWEI Data...\n');
+
+arfi_par = load(sprintf('arfi_par_%s.mat',timeStamp));
+swei_par = load(sprintf('swei_par_%s.mat',timeStamp));
+
 if options.dataflow.ARFI
     [arfidata,arfiSave,options] = extractMmode(timeStamp,options,'ARFI');
-    arfi_par = load(sprintf('arfi_par_%s.mat',timeStamp));
     arfidata = interpPushReverb(arfidata,options,arfi_par,''); % Interpolates through push-reverb; so that LPF can to function
 else
     arfidata = [];
-    arfi_par = [];
 end
 if options.dataflow.SWEI
     [sweidata,sweiSave,options] = extractMmode(timeStamp,options,'SWEI');
-    swei_par = load(sprintf('swei_par_%s.mat',timeStamp));
     sweidata = interpPushReverb(sweidata,options,swei_par,''); % Interpolates through push-reverb; so that LPF can to function
 else
     sweidata = [];
-    swei_par = [];
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -101,13 +101,16 @@ if exist(strcat('ECG_data_',timeStamp,'.mat'),'file')
     fprintf(1,'Loading ECG/Trigger Data...\n');
     % Expected Length of Bmode, ARFI and SWEI acq respectively
     dt(1) = ceil(bdata.t(end));
-    dt(2) = ceil(arfidata.acqTime(end)); 
-    dt(3) = dt(2); % For now, this would need to be updated if ARFI/SWEI timing is independent
+    if options.dataflow.ARFI dt(2) = ceil((arfi_par.numBeamGroups*arfi_par.numAcq-1)/arfi_par.pushPRF); dt(3) = dt(2); end
+    if options.dataflow.SWEI dt(3) = ceil((swei_par.numBeamGroups*swei_par.numAcq-1)/swei_par.pushPRF); dt(2) = dt(3); end
     
-    ecgdata = extractECG(timeStamp,options.dataflow.ecg_test,dt);
+    [bECG aECG sECG hr] = extractECG(timeStamp,options.dataflow.ecg_test,dt);
 else
-    ecgdata = [];
+    bECG = []; aECG = []; sECG = []; hr = [];
 end
+bdata.ecg = bECG; bdata.hr = hr;
+if options.dataflow.ARFI arfidata.ecg = aECG; arfidata.hr = hr; end
+if options.dataflow.SWEI sweidata.ecg = sECG; sweidata.hr = hr; end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Save time stamped results file
@@ -121,13 +124,13 @@ if (options.dataflow.saveRes && ~options.dataflow.display)
     if options.dataflow.ARFI
         tic
         resfile = fullfile(dest,strcat('res_arfi_',num2str(timeStamp),'.mat'));
-        save(resfile,'bdata','ecgdata','arfidata','options','-v7.3');
+        save(resfile,'bdata','arfidata','options','-v7.3');
         fprintf(1,'Save Time for ARFI = %2.2fs\n',toc)
     end
     if options.dataflow.SWEI
         tic
         resfile = fullfile(dest,strcat('res_swei_',num2str(timeStamp),'.mat'));
-        save(resfile,'bdata','ecgdata','sweidata','options','-v7.3');
+        save(resfile,'bdata','sweidata','options','-v7.3');
         fprintf(1,'Save Time for SWEI = %2.2fs\n',toc)
     end
 end
@@ -135,7 +138,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Display
 if options.dataflow.display
-    dispTTE(ecgdata,bdata,arfidata,arfi_par,sweidata,swei_par,options,timeStamp);
+    dispTTE(bdata,arfidata,arfi_par,sweidata,swei_par,options,timeStamp);
 end
 
 cd(cudir)

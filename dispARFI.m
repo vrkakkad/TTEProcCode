@@ -1,4 +1,4 @@
-function [traced_gate] =  dispARFI(ecgdata,bdata,arfidata,arfidata_mf_pre,arfidata_mf_push,options,par)
+function [traced_gate] =  dispARFI(bdata,arfidata,arfidata_mf_pre,arfidata_mf_push,options,par)
 
 %% Check for existance of traced gate
 if isfield(arfidata,'traced_gate') && ~isempty(arfidata.traced_gate)
@@ -35,11 +35,11 @@ if isunix
     dispPar.fsize = 12;
 elseif ispc
     set(fig1,'units','normalized','outerposition',[0 0 1 1])
-    dispPar.fsize = 8;
+    dispPar.fsize = 10;
 end
 
 if strcmpi(options.display.theme,'light')
-    dispPar.fig = [1 1 1]; dispPar.txt = 'k'; dispPar.ax = [0.5 0.5 0.5];
+    dispPar.fig = [1 1 1]; dispPar.txt = 'k'; dispPar.ax = [1 1 1];
     for i=1:size(bdata.bimg,3)
         temp = bdata.bimg(:,:,i);
         temp(temp==bdata.bimg(1,1,i)) = 256;
@@ -73,40 +73,61 @@ dispPar.corder = winter(options.display.n_pts);
 %     end
 % end
 
-if isempty(options.display.disprange)
-    rng = [-2 10];
-end
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Display Bmode Cine
+
+bsamples = zeros(1,nacqT);
+for i=1:size(bdata.bimg,3)
+    bsamples(i) = bdata.ecg(find(bdata.ecg(:,1)>bdata.t(i),1,'first')-1,2);
+    bdata.bimg(:,:,i) = fliplr(bdata.bimg(:,:,i));
+end
+
+if ~isempty(bdata.ecg)
+    ax112 = axes('Position',[0.125 0.5 0.25 0.1]);
+    plot(bdata.ecg(:,1),bdata.ecg(:,2),'LineWidth',2,'Parent',ax112);
+    hold(ax112,'on')
+    plot(bdata.t,bsamples,'gx','MarkerSize',6,'Parent',ax112)
+    pt = plot(bdata.t(1),bsamples(1),'ro','MarkerSize',6,'MarkerFaceColor','r','Parent',ax112);
+    title('ECG Trace (Bmode)','FontSize',dispPar.fsize,'FontWeight','Bold','Color',dispPar.txt)
+    xlabel('Acquisition Time (s)','FontSize',dispPar.fsize,'FontWeight','Bold','Color',dispPar.txt)
+    xlim([0 max(bdata.t)])
+    ylim([min(bdata.ecg(:,2)) max(bdata.ecg(:,2))])
+    set(ax112,'Color',dispPar.ax,'XColor',dispPar.txt,'YColor',dispPar.txt,'YTickLabel',[],'FontWeight','Bold','XGrid','On','GridLineStyle','--','UserData','b_ecg_ax')
+end
+    
 for i=1:size(bdata.bimg,3);
-    ax11 = subplot('Position',[0.1 0.6 0.3 0.3]);
-    imagesc(bdata.blat,bdata.bax,fliplr(bdata.bimg(:,:,i)));
+    ax11 = subplot('Position',[0.1 0.65 0.3 0.3]);
+    imagesc(bdata.blat,bdata.bax,bdata.bimg(:,:,i));
     colormap(gray);axis image; freezeColors;
     hold(ax11,'on')
+    plot(0,par.pushFocalDepth,'o','MarkerSize',6,'MarkerFaceColor','c')
     r1 = rectangle('Position',[-7 edge(1) 14 edge(2)-edge(1)],'EdgeColor','b','Linewidth',2,'Parent',ax11);
     if prior_trace
         r2 = rectangle('Position',[-2 min(gate(:)) 4 range(gate(:))],'EdgeColor','g','Linestyle','--','Linewidth',2,'Parent',ax11);
     elseif ~prior_trace
         r2 = rectangle('Position',[-2 min(gate(:)) 4 options.display.gateWidth],'EdgeColor','g','Linewidth',2,'Parent',ax11);
     end
-    xlabel('Lateral (mm)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.fig)
-    ylabel('Axial (mm)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.fig)
-    title(sprintf('TimeStamp = %s \nB-Mode Cine: Frame %d (t = %1.1f s)',num2str(options.timeStamp),i,bdata.t(i)),'fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
-    set(ax11,'xcolor',dispPar.fig,'ycolor',dispPar.fig,'fontweight','bold','UserData','bmodecine_ax')
+%     xlabel('Lateral (mm)','FontSize',dispPar.fsize,'FontWeight','Bold','Color',dispPar.fig)
+%     ylabel('Axial (mm)','FontSize',dispPar.fsize,'FontWeight','Bold','Color',dispPar.fig)
+%     title(sprintf('TimeStamp = %s \nB-Mode Cine: Frame %d (t = %1.1f s)',num2str(options.timeStamp),i,bdata.t(i)),'fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+    title(sprintf('B-Mode Cine: Frame %d (t = %1.1f s)',i,bdata.t(i)),'FontSize',dispPar.fsize,'FontWeight','Bold','Color',dispPar.txt)
+    set(ax11,'XColor',dispPar.fig,'YColor',dispPar.fig,'FontWeight','Bold','UserData','bmodecine_ax')
     hold(ax11,'off')
     
-    %     xlim([-25 25]);ylim([max(edge(1)-15,arfidata.IQaxial(1)) min(edge(2)+15,arfidata.IQaxial(end))])
+    if ~isempty(bdata.ecg)
+        delete(pt)
+        pt = plot(bdata.t(i),bsamples(i),'ro','MarkerSize',6,'MarkerFaceColor','r','Parent',ax112);
+    end
     
-    pause(0.025)
+    pause
     if i==size(bdata.bimg,3)
         % Display M-mode IQ
         ax12 = axes('Position',[0.45 0.7 0.52 0.2]);
         frame = abs(arfidata.IQ(:,:,1)); % Display first frame only
         frame = db(frame/max(frame(:)));
-        temp = find(arfidata.IQaxial>edge(1)+5,1);
+        temp = find(arfidata.IQaxial>edge(1)-1,1);
         if isempty(temp); idx(1) = 1; else idx(1) = temp; end; clear temp
-        temp = find(arfidata.IQaxial>edge(2)-5,1);
+        temp = find(arfidata.IQaxial>edge(2)+1,1);
         if isempty(temp); idx(2) = length(arfidata.IQaxial); else idx(2) = temp; end; clear temp
         imagesc(linspace(0,arfidata.acqTime(end),size(arfidata.IQ,2)),arfidata.IQaxial(idx(1):idx(2)),frame(idx(1):idx(2),:),options.display.IQrange)
         clear idx
@@ -115,14 +136,59 @@ for i=1:size(bdata.bimg,3);
         l2 = plot(linspace(0,arfidata.acqTime(end),nacqT),arfidata.axial(end)*ones(1,nacqT),'b','Linewidth',2,'Parent',ax12);
         l3 = plot(linspace(0,arfidata.acqTime(end),nacqT),gate(:,1),'g','Linewidth',2,'Parent',ax12);
         l4 = plot(linspace(0,arfidata.acqTime(end),nacqT),gate(:,2),'g','Linewidth',2,'Parent',ax12);
+        plot(0,par.pushFocalDepth,'>','Markersize',10,'MarkerFaceColor','c')
         hold(ax12,'off')
         xlabel('Acquisition Time (s)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
         ylabel('Axial (mm)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
         title(sprintf('M-Mode Frames\n Harmonic Tracking = %d\n Track PRF = %1.2f kHz, Push = %d x %d \\mus',par.isHarmonic,trackPRF,par.npush,par.pushDurationusec),'fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
         colormap(gray); freezeColors;
-        set(ax12,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','xgrid','on','gridLineStyle','--','UserData','mmodeIQ_ax')
+        set(ax12,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','xgrid','off','gridLineStyle','--','UserData','mmodeIQ_ax')
     end
 end
+
+% threshhold = 0.75;
+% [pks, idx] = findpeaks(double(bdata.ecg(:,2)),'MinPeakHeight',threshhold);
+% t_pk = bdata.ecg(idx(1),1);
+% t_norm = (bdata.t-t_pk)*(bdata.hr/60);
+% frame_idx = [1:find(t_norm>t_norm(1)+1,1,'first')];
+% 
+% nbms = 51; mid = (size(bdata.bimg,2)+1)/2;
+% temp = bdata.bimg(:,mid-(nbms-1)/2:mid+(nbms-1)/2,frame_idx);
+% temp = reshape(temp,size(temp,1),size(temp,2)*size(temp,3));
+% figure;imagesc([],bdata.bax,temp);colormap(gray)
+% 
+% for i=1:size(frame_idx,2)
+%     [x,y] = ginput(1);
+%     hold on
+%     plot(x,y,'yx','MarkerSize',6);
+%     top(i) = y;
+%     [x,y] = ginput(1);
+%     plot(x,y,'yx','MarkerSize',6);
+%     bot(i) = y;
+%     clear x y
+% end
+% 
+% keyboard
+
+
+% [pks2, idx2] = findpeaks(double(arfidata.ecg(:,2)),'MinPeakHeight',threshhold);
+% t_pk2 = arfidata.ecg(idx2(1),1);
+% t_norm2 = (arfidata.acqTime-t_pk2)*(arfidata.hr/60);
+% 
+% top = top(1:28);
+% bot = bot(1:28);
+% 
+% mod_t = mod(t_norm,1);
+% mod_t2 = mod(t_norm2,1);
+% 
+% for i=1:nacqT
+%     temp = find(mod_t>mod_t2(i),1,'first');
+%     if isempty(temp); temp = find(mod_t>mod_t2(i)-median(diff(mod_t2)),1,'first');end
+%     index(i) = temp;
+% end
+% 
+% top_trace = top(index);  bot_trace = bot(index);
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% NaN out push reverb frames
 arfidata = interpPushReverb(arfidata,options,par,'nan'); % NaN out push and reverb frames
@@ -145,9 +211,9 @@ nt = double(ceil(options.display.medfilt(2)/(arfidata.acqTime(2) - arfidata.acqT
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Display M-mode ARFI
 if options.motionFilter.enable
-    [pre,push,idx_pre,idx_push] = dispMmode(options,nax,nt,arfidata_mf_pre,arfidata_mf_push,par,gate,mask,dispPar,rng);
+    [pre,push,idx_pre,idx_push] = dispMmode(options,nax,nt,arfidata_mf_pre,arfidata_mf_push,par,gate,edge,mask,dispPar,rng);
 else % Motion Filter Disabled
-    [pre,push,idx_pre,idx_push] = dispMmode(options,nax,nt,arfidata,arfidata,par,gate,mask,dispPar,rng);
+    [pre,push,idx_pre,idx_push] = dispMmode(options,nax,nt,arfidata,arfidata,par,gate,mask,edge,dispPar,rng);
 end
 
 % NaN out displacements filtered out by cc_thresh
@@ -159,27 +225,27 @@ push(push==inf) = nan;
 %     arfidata_mf_push.disp(mask==0) = nan;
 % end
 
-if isempty(ecgdata)
+if isempty(arfidata.ecg)
     xlabel('Acquisition Time (s)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Incorporate ECG Data into this figure
-if ~isempty(ecgdata)
+if ~isempty(arfidata.ecg)
     samples = zeros(1,nacqT);
-    ecgdata.arfi(:,2) = ecgdata.arfi(:,2)/max(ecgdata.arfi(:,2));
     for i=1:nacqT
-        samples(i) = ecgdata.arfi(find(ecgdata.arfi(:,1)>arfidata.acqTime(i),1,'first')-1,2);
+        samples(i) = arfidata.ecg(find(arfidata.ecg(:,1)>arfidata.acqTime(i),1,'first')-1,2);
     end
     
     ax15 = axes('Position',[0.5 0.1 0.4 0.2]);
-    plot(ecgdata.arfi(:,1),ecgdata.arfi(:,2),'Linewidth',2);
+    plot(arfidata.ecg(:,1),arfidata.ecg(:,2),'Linewidth',2);
     hold(ax15,'on')
     plot(arfidata.acqTime,samples,'gx','MarkerSize',8)
     pt = plot(arfidata.acqTime(1),samples(1),'ro','Parent',ax15,'Markersize',10,'Markerfacecolor','r');
     title('ECG Trace','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
     xlabel('Acquisition Time (s)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
-    axis tight
+    xlim([0 max(arfidata.acqTime)])
+    ylim([min(arfidata.ecg(:,2)) max(arfidata.ecg(:,2))])
     set(ax15,'color',dispPar.ax,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'yTickLabel',[],'fontweight','bold','xgrid','on','gridLineStyle','--','Userdata','ecg_ax')
     hold(ax15,'off')
 end
@@ -193,7 +259,7 @@ for i=1:nacqT
     idx(i,:) = ceil(linspace(gate_idx(i,1),gate_idx(i,2),options.display.n_pts)); % Calculate indices for disp. vs. time plots
 end
 
-ax16 = axes('Position',[0.05 0.15 0.4 0.3]);
+ax16 = axes('Position',[0.05 0.1 0.4 0.25]);
 plot(arfidata.acqTime,pre_trace,'-yo','Parent',ax16,'linewidth',3,'MarkerFaceColor','k');
 hold(ax16,'on')
 plot(arfidata.acqTime,push_trace,'-ro','Parent',ax16,'linewidth',3,'MarkerFaceColor','k');
@@ -206,6 +272,12 @@ xlim([0 max(arfidata.acqTime)])
 set(ax16,'Color',dispPar.ax,'ColorOrder',dispPar.corder,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','UserData','res_ax');
 hold(ax16,'off')
 
+% Auto Range
+if options.display.autoRange
+    if min(pre_trace)>=0;low = 0.75*min(pre_trace);else low = 1.25*min(pre_trace);end
+    high = 1.25*max(push_trace);
+    setRange([low high])
+end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Trace Gate
 if options.display.extras == [-1]  % no breaks
@@ -263,9 +335,9 @@ end
 
 % Display M-mode ARFI
 if options.motionFilter.enable
-    [pre,push,idx_pre,idx_push] = dispMmode(options,nax,nt,arfidata_mf_pre,arfidata_mf_push,par,gate,mask,dispPar,rng);
+    [pre,push,idx_pre,idx_push] = dispMmode(options,nax,nt,arfidata_mf_pre,arfidata_mf_push,par,gate,edge,mask,dispPar,rng);
 else % Motion Filter Disabled
-    [pre,push,idx_pre,idx_push] = dispMmode(options,nax,nt,arfidata,arfidata,par,gate,mask,dispPar,rng);
+    [pre,push,idx_pre,idx_push] = dispMmode(options,nax,nt,arfidata,arfidata,par,gate,mask,edge,dispPar,rng);
 end
 
 % NaN out displacements filtered out by cc_thresh
@@ -277,7 +349,7 @@ push(push==inf) = nan;
 %     arfidata_mf_push.disp(mask==0) = nan;
 % end
 
-% Compute Pre and Push Traces averaged axially over the gate
+%% Compute Pre and Push Traces averaged axially over the gate
 for i=1:nacqT
     gate_idx(i,:) = [find(arfidata.axial>gate(i,1),1,'first') find(arfidata.axial<gate(i,2),1,'last')];
     pre_trace(i) = nanmean(pre(gate_idx(i,1):gate_idx(i,2),i));
@@ -286,7 +358,7 @@ for i=1:nacqT
 end
 
 delete(ax16)
-ax16 = axes('Position',[0.05 0.15 0.4 0.3]);
+ax16 = axes('Position',[0.05 0.1 0.4 0.25]);
 plot(arfidata.acqTime,pre_trace,'-yo','Parent',ax16,'linewidth',3,'MarkerFaceColor','k');
 hold(ax16,'on')
 plot(arfidata.acqTime,push_trace,'-ro','Parent',ax16,'linewidth',3,'MarkerFaceColor','k');
@@ -298,6 +370,13 @@ xlim([0 max(arfidata.acqTime)])
 grid on
 set(ax16,'Color',dispPar.ax,'ColorOrder',dispPar.corder,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','UserData','res_ax');
 hold(ax16,'off')
+
+% Auto Range
+if options.display.autoRange
+    if min(pre_trace)>=0;low = 0.75*min(pre_trace);else low = 1.25*min(pre_trace);end
+    high = 1.25*max(push_trace);
+    setRange([low high])
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Loop to go through Acquisition Time
@@ -332,13 +411,13 @@ if options.display.extras > 0;
     
     while i<=nacqT
         
-        if ~isempty(ecgdata)
+        if ~isempty(arfidata.ecg)
             delete(pt); %set(pt,'Visible','off')
         end
         
         if i==1
             delete(ax16)
-            ax16 = axes('Position',[0.05 0.15 0.4 0.3]);
+            ax16 = axes('Position',[0.05 0.1 0.4 0.25]);
             set(ax16,'ColorOrder',dispPar.corder)
         else
             cla(ax16)
@@ -366,7 +445,7 @@ if options.display.extras > 0;
         set(ax16,'Color',dispPar.ax,'ColorOrder',dispPar.corder,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','UserData','res_ax');
         hold(ax16,'off')
         
-        if ~isempty(ecgdata)
+        if ~isempty(arfidata.ecg)
             hold(ax15,'on')
             pt = plot(arfidata.acqTime(i),samples(i),'ro','Parent',ax15,'Markersize',10,'Markerfacecolor','r');
             hold(ax15,'off')
@@ -499,7 +578,7 @@ for i=1:nacqT
 end
 
 delete(ax16)
-ax16 = axes('Position',[0.05 0.15 0.4 0.3]);
+ax16 = axes('Position',[0.05 0.1 0.4 0.25]);
 plot(arfidata.acqTime,pre_trace,'-yo','Parent',ax16,'linewidth',3,'MarkerFaceColor','k');
 hold(ax16,'on')
 plot(arfidata.acqTime,push_trace,'-ro','Parent',ax16,'linewidth',3,'MarkerFaceColor','k');
@@ -511,6 +590,13 @@ ylim(rng)
 xlim([0 max(arfidata.acqTime)])
 set(ax16,'Color',dispPar.ax,'ColorOrder',dispPar.corder,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','UserData','res_ax');
 hold(ax16,'off')
+
+% Auto Range
+if options.display.autoRange
+    if min(pre_trace)>=0;low = 0.75*min(pre_trace);else low = 1.25*min(pre_trace);end
+    high = 1.25*max(push_trace);
+    setRange([low high])
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Panel of Axial Displacement and Axial Velocity Data vs. ECG
@@ -565,7 +651,7 @@ if strcmpi(extra3_input,'y')
     start_idx(1) = 1;
     raw_panel(:,start_idx(1):start_idx(1)+size(raw,2)-1) = raw(:,:,1) - shift_disp;
     raw_vel_panel(:,start_idx(1):start_idx(1)+size(raw_vel,2)-1) = raw_vel(:,:,1) - shift_vel;
-
+    
     for i=2:nacqT
         start_idx(i) = find(tt>arfidata.acqTime(i),1)-1;
         raw_panel(:,start_idx(i):start_idx(i)+size(raw,2)-1) = raw(:,:,i) - shift_disp;
@@ -616,9 +702,9 @@ if strcmpi(extra3_input,'y')
     cb = colorbar;
     ylabel(cb,'Velocity (cm/s)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
     
-    if ~isempty(ecgdata)
+    if ~isempty(arfidata.ecg)
         ax43 = axes('Position',[0.030 0.40 0.90 0.20]);
-        plot(1000*ecgdata.arfi(:,1),ecgdata.arfi(:,2),'linewidth',5);
+        plot(1000*arfidata.ecg(:,1),arfidata.ecg(:,2),'linewidth',5);
         xlabel('Time (ms)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
         set(ax43,'color',[0.15 0.15 0.15],'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','TickLength',[0 0.025],'yTickLabel',[],'xgrid','on','UserData','ecgpanel_ax')
         xlim(win)
@@ -658,9 +744,9 @@ if strcmpi(extra3_input,'y')
             cb = colorbar;
             ylabel(cb,'Velocity (cm/s)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
             
-            if ~isempty(ecgdata)
+            if ~isempty(arfidata.ecg)
                 ax43 = axes('Position',[0.030 0.40 0.90 0.20]);
-                plot(1000*ecgdata.arfi(:,1),ecgdata.arfi(:,2),'linewidth',5);
+                plot(1000*arfidata.ecg(:,1),arfidata.ecg(:,2),'linewidth',5);
                 xlabel('Time (ms)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
                 set(ax43,'color',[0.15 0.15 0.15],'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','TickLength',[0 0.025],'yTickLabel',[],'xgrid','on','UserData','ecgpanel_ax')
                 xlim(win)
@@ -699,9 +785,9 @@ if strcmpi(extra3_input,'y')
             cb = colorbar;
             ylabel(cb,'Velocity (cm/s)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
             
-            if ~isempty(ecgdata)
+            if ~isempty(arfidata.ecg)
                 ax43 = axes('Position',[0.030 0.40 0.90 0.20]);
-                plot(1000*ecgdata.arfi(:,1),ecgdata.arfi(:,2),'linewidth',5);
+                plot(1000*arfidata.ecg(:,1),arfidata.ecg(:,2),'linewidth',5);
                 xlabel('Time (ms)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
                 set(ax43,'color',[0.15 0.15 0.15],'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','TickLength',[0 0.025],'yTickLabel',[],'xgrid','on','UserData','ecgpanel_ax')
                 xlim(win)
@@ -715,56 +801,7 @@ if strcmpi(extra3_input,'y')
     end
     close 4
 end
+    
 
-%% Extract Data starting at first QRS
 
-test = ecgdata.arfi(1:floor(end/2),2);
-test = test/max(test);
-idx_start = find(arfidata.acqTime>ecgdata.arfi(find(test>0.95,1,'first'),1),1,'first')-1;
-t_start = arfidata.acqTime(idx_start);
-ecg = nan(size(ecgdata.arfi,1),2);
-ecg(:,1) = ecgdata.arfi(:,1);
-temp = ecgdata.arfi(find(ecgdata.arfi(:,1)>t_start,1,'first'):end,2);
-ecg(1:size(temp,1),2) = temp;
-pre_seg = nan(1,nacqT); push_seg = pre_seg;
-pre_seg(1:nacqT-idx_start+1) = pre_trace(idx_start:end);
-push_seg(1:nacqT-idx_start+1) = push_trace(idx_start:end);
-acqTime = arfidata.acqTime;
-
-figure
-set(gcf,'color',dispPar.fig)
-subplot(211);
-plot(acqTime,pre_seg,'-yo','linewidth',3,'MarkerFaceColor','k');
-hold(gca,'on')
-plot(acqTime,push_seg,'-ro','linewidth',3,'MarkerFaceColor','k');
-xlabel('Acquisition Time (s)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt);
-ylabel('Displacement (\mum)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt);
-title(sprintf('Axially Averaged ARFI Displacements\n(within Depth Gate)'),'fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
-ylim([-2 10])
-xlim([0 max(acqTime)])
-grid on
-set(gca,'Color',dispPar.ax,'ColorOrder',dispPar.corder,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','UserData','res_ax');
-hold(gca,'off')
-
-subplot(212);
-plot(ecg(:,1),ecg(:,2),'Linewidth',2);
-hold(gca,'on')
-plot(acqTime(idx_start:end)-t_start,samples(idx_start:end),'gx','MarkerSize',8)
-xlim([0 max(acqTime)])
-title('ECG Trace','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
-xlabel('Acquisition Time (s)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
-set(gca,'color',dispPar.ax,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'yTickLabel',[],'fontweight','bold','xgrid','on','gridLineStyle','--','Userdata','ecg_ax')
-hold(gca,'off')
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-keyboard
-
-dest = fullfile(pwd,'align');
-if ~exist(dest,'dir')
-    warning('align folder does not exist...creating it')
-    mkdir(dest)
-end
-fprintf(1,'Saving aligned files...\n');
-alignfile = fullfile(dest,strcat('align_arfi_',num2str(options.timeStamp),'.mat'));
-
-save(alignfile,'acqTime','pre_seg','push_seg','ecg','dispPar','idx_start','t_start','samples','-v7.3');
 
