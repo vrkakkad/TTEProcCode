@@ -1,9 +1,19 @@
-function [traced_gate] =  dispARFI(bdata,arfidata,arfidata_mf_pre,arfidata_mf_push,options,par)
+function dispARFI(bdata,arfidata,options,par)
+
+keyboard
 
 %% Check for existance of traced gate
-if isfield(arfidata,'traced_gate') && ~isempty(arfidata.traced_gate)
+
+[temp1 temp2] = fileparts(pwd);
+if isunix
+    gate_path = strcat('/emfd/vrk4/Transthoracic_Clinical/traced_gates/',temp2);
+elseif ispc
+    
+end
+fname = strcat(gate_path,'/',sprintf('%02d',options.dataflow.setID),'_',options.timeStamp,'.mat');
+if exist(fname,'file')
     prior_trace = 1;
-    traced_gate = arfidata.traced_gate;
+    load(fname);
 else
     prior_trace = 0;
     traced_gate = [];
@@ -17,14 +27,14 @@ edge = [arfidata.axial(1) arfidata.axial(end)];
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Set Gate Parameters
 if prior_trace
-    gate = repmat(arfidata.traced_gate,1,2) + repmat(options.display.gateOffset,length(arfidata.traced_gate),2) + repmat([-options.display.gateWidth/2 options.display.gateWidth/2],length(arfidata.traced_gate),1);
+    gate = traced_gate;
 elseif ~prior_trace
     gate = (par.pushFocalDepth + options.display.gateOffset + [-options.display.gateWidth/2 options.display.gateWidth/2]);
     gate = repmat(gate,[nacqT 1]);
-    traced_gate = [];
-    if (min(gate(:))<arfidata.axial(1) || max(gate(:))>arfidata.axial(end))
-        warning('Depth gate requested (%2.2f-%2.2f mm) falls outside the range over which displacements are computed (%2.2f-%2.2f mm)',min(gate(:)),max(gate(:)),arfidata.axial(1),arfidata.axial(end));
-    end
+end
+
+if (min(gate(:))<arfidata.axial(1) || max(gate(:))>arfidata.axial(end))
+    warning('Depth gate requested (%2.2f-%2.2f mm) falls outside the range over which displacements are computed (%2.2f-%2.2f mm)',min(gate(:)),max(gate(:)),arfidata.axial(1),arfidata.axial(end));
 end
 
 % Set Display Parameters
@@ -57,7 +67,7 @@ end
 set(fig1,'Color',dispPar.fig)
 trackPRF = 1000/par.priusec(1); % kHz
 
-rng = options.display.disprange;
+rng = options.display.dispRange;
 
 dispPar.cmap = colormap(parula);
 dispPar.cmap(end,:) = dispPar.ax;
@@ -76,19 +86,18 @@ dispPar.corder = winter(options.display.n_pts);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Display Bmode Cine
 
-bsamples = zeros(1,nacqT);
-for i=1:size(bdata.bimg,3)
-    bsamples(i) = bdata.ecg(find(bdata.ecg(:,1)>bdata.t(i),1,'first')-1,2);
-    bdata.bimg(:,:,i) = fliplr(bdata.bimg(:,:,i));
-end
-
 if ~isempty(bdata.ecg)
+    bsamples = zeros(1,nacqT);
+    for i=1:size(bdata.bimg,3)
+        bsamples(i) = bdata.ecg(find(bdata.ecg(:,1)>bdata.t(i),1,'first')-1,2);
+        bdata.bimg(:,:,i) = fliplr(bdata.bimg(:,:,i));
+    end
     ax112 = axes('Position',[0.125 0.5 0.25 0.1]);
     plot(bdata.ecg(:,1),bdata.ecg(:,2),'LineWidth',2,'Parent',ax112);
     hold(ax112,'on')
     plot(bdata.t,bsamples,'gx','MarkerSize',6,'Parent',ax112)
     pt = plot(bdata.t(1),bsamples(1),'ro','MarkerSize',6,'MarkerFaceColor','r','Parent',ax112);
-    title('ECG Trace (Bmode)','FontSize',dispPar.fsize,'FontWeight','Bold','Color',dispPar.txt)
+    title(sprintf('ECG (Bmode): HR = %2.0f bpm',bdata.hr),'FontSize',dispPar.fsize,'FontWeight','Bold','Color',dispPar.txt)
     xlabel('Acquisition Time (s)','FontSize',dispPar.fsize,'FontWeight','Bold','Color',dispPar.txt)
     xlim([0 max(bdata.t)])
     ylim([min(bdata.ecg(:,2)) max(bdata.ecg(:,2))])
@@ -119,10 +128,10 @@ for i=1:size(bdata.bimg,3);
         pt = plot(bdata.t(i),bsamples(i),'ro','MarkerSize',6,'MarkerFaceColor','r','Parent',ax112);
     end
     
-    pause
+    pause(0.025)
     if i==size(bdata.bimg,3)
         % Display M-mode IQ
-        ax12 = axes('Position',[0.45 0.7 0.52 0.2]);
+        ax12 = axes('Position',[0.45 0.7 0.50 0.2]);
         frame = abs(arfidata.IQ(:,:,1)); % Display first frame only
         frame = db(frame/max(frame(:)));
         temp = find(arfidata.IQaxial>edge(1)-1,1);
@@ -146,56 +155,65 @@ for i=1:size(bdata.bimg,3);
     end
 end
 
+%% Trace Tissue border on Bmode data
+
 % threshhold = 0.75;
 % [pks, idx] = findpeaks(double(bdata.ecg(:,2)),'MinPeakHeight',threshhold);
 % t_pk = bdata.ecg(idx(1),1);
-% t_norm = (bdata.t-t_pk)*(bdata.hr/60);
-% frame_idx = [1:find(t_norm>t_norm(1)+1,1,'first')];
+% tnorm = (bdata.t-t_pk)*(bdata.hr/60);
+% mod_tnorm = mod(tnorm,1);
+% range(tnorm)
+% frame_idx = [1:find(tnorm>tnorm(1)+1,1,'first')+1];
+% if isempty(frame_idx) frame_idx = [1:length(bdata.t)];end
 % 
-% nbms = 51; mid = (size(bdata.bimg,2)+1)/2;
+% nbms = 51; mid = ceil(size(bdata.bimg,2)/2);
 % temp = bdata.bimg(:,mid-(nbms-1)/2:mid+(nbms-1)/2,frame_idx);
 % temp = reshape(temp,size(temp,1),size(temp,2)*size(temp,3));
-% figure;imagesc([],bdata.bax,temp);colormap(gray)
+% xvec = linspace(0,length(frame_idx)*range(bdata.blat(mid-(nbms-1)/2:mid+(nbms-1)/2)),size(temp,2));
+% 
+% figure;
+% set(gcf,'units','normalized','outerposition',[0 0 1 1])
+% imagesc(xvec,bdata.bax,temp);colormap(gray);axis image;
 % 
 % for i=1:size(frame_idx,2)
 %     [x,y] = ginput(1);
 %     hold on
-%     plot(x,y,'yx','MarkerSize',6);
+%     plot(x,y,'kx','MarkerSize',6);
 %     top(i) = y;
+%     clear x y
+% end
+% for i=1:size(frame_idx,2)
 %     [x,y] = ginput(1);
-%     plot(x,y,'yx','MarkerSize',6);
+%     hold on
+%     plot(x,y,'kx','MarkerSize',6);
 %     bot(i) = y;
 %     clear x y
 % end
+% close gcf
 % 
-% keyboard
-
-
 % [pks2, idx2] = findpeaks(double(arfidata.ecg(:,2)),'MinPeakHeight',threshhold);
 % t_pk2 = arfidata.ecg(idx2(1),1);
-% t_norm2 = (arfidata.acqTime-t_pk2)*(arfidata.hr/60);
+% tnorm_arfi = (arfidata.acqTime-t_pk2)*(arfidata.hr/60);
 % 
-% top = top(1:28);
-% bot = bot(1:28);
 % 
-% mod_t = mod(t_norm,1);
-% mod_t2 = mod(t_norm2,1);
+% mod_tnorm_arfi = mod(tnorm_arfi,1);
 % 
 % for i=1:nacqT
-%     temp = find(mod_t>mod_t2(i),1,'first');
-%     if isempty(temp); temp = find(mod_t>mod_t2(i)-median(diff(mod_t2)),1,'first');end
+%     temp = find(mod_tnorm(frame_idx)>mod_tnorm_arfi(i),1,'first');
+%     if isempty(temp); temp = find(mod_tnorm>mod_tnorm_arfi(i)-median(diff(mod_tnorm_arfi)),1,'first');end
 %     index(i) = temp;
 % end
 % 
-% top_trace = top(index);  bot_trace = bot(index);
+% top_trace = smooth(top(index));  bot_trace = smooth(bot(index));
+% 
+% hold(ax12,'on')
+% 
+% l3_alt = plot(linspace(0,arfidata.acqTime(end),nacqT),top_trace,'r','Linewidth',2,'Parent',ax12);
+% l4_alt = plot(linspace(0,arfidata.acqTime(end),nacqT),bot_trace,'r','Linewidth',2,'Parent',ax12);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% NaN out push reverb frames
 arfidata = interpPushReverb(arfidata,options,par,'nan'); % NaN out push and reverb frames
-if options.motionFilter.enable
-    arfidata_mf_pre = interpPushReverb(arfidata_mf_pre,options,par,'nan'); % NaN out push and reverb frames
-    arfidata_mf_push = interpPushReverb(arfidata_mf_push,options,par,'nan'); % NaN out push and reverb frames
-end
 
 % Coorelation mask filter
 if options.display.cc_filt
@@ -210,17 +228,13 @@ nt = double(ceil(options.display.medfilt(2)/(arfidata.acqTime(2) - arfidata.acqT
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Display M-mode ARFI
-if options.motionFilter.enable
-    [pre,push,idx_pre,idx_push] = dispMmode(options,nax,nt,arfidata_mf_pre,arfidata_mf_push,par,gate,edge,mask,dispPar,rng);
-else % Motion Filter Disabled
-    [pre,push,idx_pre,idx_push] = dispMmode(options,nax,nt,arfidata,arfidata,par,gate,mask,edge,dispPar,rng);
-end
+[pre,push,idx_pre,idx_push] = dispMmode(options,nax,nt,arfidata,par,gate,edge,mask,dispPar,rng);
 
 % NaN out displacements filtered out by cc_thresh
 pre(pre==inf) = nan;
 push(push==inf) = nan;
 % arfidata.disp(mask==0) = nan;
-% if options.motionFilter.enable
+% if ~strcmpi(options.motionFilter.method,'Off')
 %     arfidata_mf_pre.disp(mask==0) = nan;
 %     arfidata_mf_push.disp(mask==0) = nan;
 % end
@@ -280,7 +294,7 @@ if options.display.autoRange
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Trace Gate
-if options.display.extras == [-1]  % no breaks
+if options.display.extras == -1  % no breaks
     trace_input = 'n';
     flatgate_input = 'y';
 end
@@ -309,42 +323,55 @@ end
 
 if strcmpi(trace_input,'y')
     delete(r2);delete(l3);delete(l4);
-    fprintf(1,'\nReady to trace gate (GateWidth = %2.1f mm)...\nClick to define points, hit space to end tracing\n',options.display.gateWidth)
+    fprintf(1,'\nReady to trace gate (top first and then bottom) (GateWidth = %2.1f mm)...\nClick to define points, hit space to end tracing\n',options.display.gateWidth)
     
-    % Change this to not require nacqT clicks!!
+    fprintf(1,'Trace Top...\n');
     for i=1:nacqT
         [x,y] = ginput(1);
         hold on
-        mark(i) = plot(x,y,'yo','MarkerSize',10);
-        gate(i,:) = (y + [-options.display.gateWidth/2 options.display.gateWidth/2]);
+        top_mark(i) = plot(x,y,'yx','MarkerSize',6);
+        top(i) = y;
         clear x y
     end
-    delete(mark)
+    fprintf(1,'Trace Bottom...\n');
+    for i=1:nacqT
+        [x,y] = ginput(1);
+        hold on
+        bot_mark(i) = plot(x,y,'rx','MarkerSize',6);
+        bot(i) = y;
+        clear x y
+    end
+    delete(top_mark);delete(bot_mark)
+    gate = [smooth(top',3) smooth(bot',3)];
     hold(ax11,'on')
     r2 = rectangle('Position',[-2 min(gate(:)) 4 range(gate(:))],'EdgeColor','g','Linewidth',2,'Parent',ax11);
     hold(ax12,'on')
     l3 = plot(linspace(0,arfidata.acqTime(end),nacqT),gate(:,1),'g','Linewidth',2,'Parent',ax12);
     l4 = plot(linspace(0,arfidata.acqTime(end),nacqT),gate(:,2),'g','Linewidth',2,'Parent',ax12);
     fprintf(1,'Gate Traced.\n')
-    traced_gate = mean(gate,2);
+    traced_gate = gate;
     
     if (min(gate(:))<arfidata.axial(1) || max(gate(:))>arfidata.axial(end))
         warning('Depth gate requested (%2.2f-%2.2f mm) falls outside the range over which displacements are computed (%2.2f-%2.2f mm)',min(gate(:)),max(gate(:)),arfidata.axial(1),arfidata.axial(end));
     end
+    % Save traced gate
+    fprintf(1,'Saving Traced Gate...\n');
+    [temp1 temp2] = fileparts(pwd);
+    gate_path = strcat('/emfd/vrk4/Transthoracic_Clinical/traced_gates/',temp2);
+    if ~exist(gate_path); mkdir(gate_path); end
+
+    fname = strcat(gate_path,'/',sprintf('%02d',options.dataflow.setID),'_',options.timeStamp,'_arfi');
+    save(fname,'traced_gate');
 end
 
 % Display M-mode ARFI
-if options.motionFilter.enable
-    [pre,push,idx_pre,idx_push] = dispMmode(options,nax,nt,arfidata_mf_pre,arfidata_mf_push,par,gate,edge,mask,dispPar,rng);
-else % Motion Filter Disabled
-    [pre,push,idx_pre,idx_push] = dispMmode(options,nax,nt,arfidata,arfidata,par,gate,mask,edge,dispPar,rng);
-end
+[pre,push,idx_pre,idx_push] = dispMmode(options,nax,nt,arfidata,par,gate,edge,mask,dispPar,rng);
 
 % NaN out displacements filtered out by cc_thresh
 pre(pre==inf) = nan;
 push(push==inf) = nan;
 % arfidata.disp(mask==0) = nan;
-% if options.motionFilter.enable
+% if ~strcmpi(options.motionFilter.method,'Off')
 %     arfidata_mf_pre.disp(mask==0) = nan;
 %     arfidata_mf_push.disp(mask==0) = nan;
 % end
@@ -377,6 +404,37 @@ if options.display.autoRange
     high = 1.25*max(push_trace);
     setRange([low high])
 end
+
+%% Plot Surfaces
+
+% figure;
+% for i=1:nacqT
+%     
+%     plot(arfidata.trackTime,squeeze(arfidata.disp(gate_idx(i,1):gate_idx(i,2),i,:))')
+%     grid on;set(gca,'ylim',[-300 300])
+%     
+% %     surf(arfidata.trackTime,arfidata.axial(gate_idx(i,1):gate_idx(i,2)),double(squeeze(arfidata.disp(gate_idx(i,1):gate_idx(i,2),i,:))))
+% %     set(gca,'zlim',[-200 200],'ydir','reverse')
+%     
+%     title(num2str(arfidata.acqTime(i)))
+%     pause
+% end
+% 
+% 
+% % Plot multiple acqTime points
+% 
+% clear tt tt_idx
+% tt = [0.2 0.95 1.7];
+% for i=1:length(tt)
+%     tt_idx(i) = find(round(double(arfidata.acqTime),2)==tt(i));
+% end
+% 
+% figure
+% plot(arfidata.trackTime,squeeze(arfidata.disp(gate_idx(tt_idx(1),1):gate_idx(tt_idx(1),2),tt_idx(1),:))','b')
+% hold all
+% plot(arfidata.trackTime,squeeze(arfidata.disp(gate_idx(tt_idx(2),1):gate_idx(tt_idx(2),2),tt_idx(2),:))','r')
+% plot(arfidata.trackTime,squeeze(arfidata.disp(gate_idx(tt_idx(3),1):gate_idx(tt_idx(3),2),tt_idx(3),:))','g')
+% grid on; set(gca,'ylim',[-300 300])
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Loop to go through Acquisition Time
@@ -419,25 +477,25 @@ if options.display.extras > 0;
             delete(ax16)
             ax16 = axes('Position',[0.05 0.1 0.4 0.25]);
             set(ax16,'ColorOrder',dispPar.corder)
+            hold(ax16,'on')
         else
             cla(ax16)
             set(ax16,'ColorOrder',dispPar.corder)
+            hold(ax16,'on')
         end
         
         % Extra Fig 1
-        if (options.motionFilter.enable && ~strcmpi(options.motionFilter.method,'LPF'))
-            plot(arfidata.trackTime(1:par.nref),squeeze(arfidata_mf_pre.disp(idx(i,:),i,1:par.nref)),'.--','Parent',ax16)
-            hold(ax16,'on')
-            plot(arfidata.trackTime(par.nref+1:end),squeeze(arfidata_mf_push.disp(idx(i,:),i,par.nref+1:end)),'.--','Parent',ax16)
+        if ~strcmpi(options.motionFilter.method,'Off')
+            plot(arfidata.trackTime(1:par.nref),squeeze(arfidata.disp_mf_pre(idx(i,:),i,1:par.nref)),'.--','Parent',ax16)
+            plot(arfidata.trackTime(par.nref+1:end),squeeze(arfidata.disp_mf_push(idx(i,:),i,par.nref+1:end)),'.--','Parent',ax16)
             ylim(ax16,rng)
         else
             plot(arfidata.trackTime,squeeze(arfidata.disp(idx(i,:),i,:)),'.--','Parent',ax16)
-            hold(ax16,'on')
-            ylim(ax16,[-200 200])
+            ylim(ax16,rng)
         end
         plot(arfidata.trackTime(idx_pre(i))*ones(1,10),linspace(-300,300,10),'y','linewidth',2,'Parent',ax16)
         plot(arfidata.trackTime(idx_push(i))*ones(1,10),linspace(-300,300,10),'g','linewidth',2,'Parent',ax16)
-        title(sprintf('ARFI Displacement Profiles (within Depth Gate)\nPush # %d (t = %2.2f s)\nMotion Filter = %s',i,arfidata.acqTime(i),options.motionFilter.method*options.motionFilter.enable),'fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt,'Parent',ax16)
+        title(sprintf('ARFI Displacement Profiles (within Depth Gate)\nPush # %d (t = %2.2f s)\nMotion Filter = %s',i,arfidata.acqTime(i),options.motionFilter.method),'fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt,'Parent',ax16)
         xlabel('Track Time (ms)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
         ylabel('Displacement (\mum)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
         xlim([arfidata.trackTime(1) arfidata.trackTime(end)])
@@ -501,9 +559,9 @@ if options.display.extras > 0;
             
             raw = squeeze(arfidata.disp(:,i,:));
             mf = nan(size(raw));
-            if options.motionFilter.enable
-                mf(:,1:par.nref) = squeeze(arfidata_mf_pre.disp(:,i,1:par.nref));
-                mf(:,par.nref+1:end) = squeeze(arfidata_mf_push.disp(:,i,par.nref+1:end));
+            if ~strcmpi(options.motionFilter.method,'Off')
+                mf(:,1:par.nref) = squeeze(arfidata.disp_mf_pre(:,i,1:par.nref));
+                mf(:,par.nref+1:end) = squeeze(arfidata.disp_mf_push(:,i,par.nref+1:end));
             end
             
             fig3 = figure(3);
@@ -801,7 +859,4 @@ if strcmpi(extra3_input,'y')
     end
     close 4
 end
-    
-
-
-
+   

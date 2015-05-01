@@ -1,16 +1,15 @@
-function dispTTE(bdata,arfidata,arfi_par,sweidata,swei_par,options,timeStamp)
+function dispTTE(bdata,arfidata,arfi_par,sweidata,swei_par,options)
 
 %% Default Input Parameters
 if ~isfield(options,'motionFilter')
     options.motionFilter = struct(...
-        'enable', 1 ...
-        ,'method','Both' ... % Polynomial/LPF/Both
-        ... % Parameters for Polynomial filter
-        ,'order', 1 ...
-        ,'timeRange_push',[-1.5 -1 4.5 5] ...
-        ,'pre_offset', -6.5 ...
+        'method','LPF' ... % Off | LPF | BPF | LPF_Poly | BPF_Poly | Poly
         ... % Parameters for Bandpass filter
-        ,'LPF_Cutoff', 750 ...
+        ,'Cutoff', [20 1000] ... % Must be two entries: LPF uses second entry as cutoff/ BPF uses entries as passband cutoffs
+        ... % Parameters for Polynomial filter
+        ,'order', 2 ...
+        ,'timeRange_push', [-1.5 -1 4.5 5] ... % [-1.5 -1 4.5 5]v
+        ,'pre_offset', -6.5 ... % [-6.5]
         );
     options.motionFilter.timeRange_pre = options.motionFilter.timeRange_push + options.motionFilter.pre_offset;
 end
@@ -49,7 +48,7 @@ if ~isfield(options,'calcSWS')
         );
 end
 
-try; trackPRF = 1000/arfi_par.priusec(1); catch; trackPRF = 1000/swei_par.priusec(1); end % kHz
+try trackPRF = 1000/arfi_par.priusec(1); catch; trackPRF = 1000/swei_par.priusec(1); end % kHz
 if trackPRF<2.5
     
     fprintf(1,'Continuous track sequence: Changing Motion Filter Parameters...  \n');
@@ -65,61 +64,61 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Process and Display
 if options.dataflow.ARFI
-    if options.motionFilter.enable
-        arfidata_mf_pre = motionFilter(arfidata,options,arfi_par,'pre');
-        arfidata_mf_push = motionFilter(arfidata,options,arfi_par,'push');
+    if ~strcmpi(options.motionFilter.method,'Off')
+        arfidata = motionFilter(arfidata,options,arfi_par,'pre');
+        arfidata = motionFilter(arfidata,options,arfi_par,'push');
     else
-        arfidata_mf_pre = [];
-        arfidata_mf_push = [];
+        arfidata.disp_mf_pre = [];
+        arfidata.disp_mf_push = [];
     end
-    [arfidata.traced_gate] = dispARFI(bdata,arfidata,arfidata_mf_pre,arfidata_mf_push,options,arfi_par);
+    dispARFI(bdata,arfidata,options,arfi_par);
 end
 
 if options.dataflow.SWEI
-    if options.motionFilter.enable
-        sweidata_mf_pre = motionFilter(sweidata,options,swei_par,'pre');
-        sweidata_mf_push = motionFilter(sweidata,options,swei_par,'push');
+    if ~strcmpi(options.motionFilter.method,'Off')
+        sweidata = motionFilter(sweidata,options,swei_par,'pre');
+        sweidata = motionFilter(sweidata,options,swei_par,'push');
     else
-        sweidata_mf_pre = [];
-        sweidata_mf_push = [];
+        sweidata.disp_mf_pre = [];
+        sweidata.disp_mf_push = [];
     end
-    [sweidata.traced_gate] = dispSWEI(bdata,sweidata,sweidata_mf_pre,sweidata_mf_push,options,swei_par);
+    dispSWEI(bdata,sweidata,options,swei_par);
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Save time stamped results file
 
-if options.dataflow.ARFI
-    if ~isempty(arfidata.traced_gate)
-        options.dataflow.saveRes = 1;
-        fprintf(1,'Detected Traced Gate. Saving ARFI Res file...\n');
-        dest = fullfile(pwd,'res');
-        if ~exist(dest,'dir')
-            warning('res folder does not exist...creating it')
-            mkdir(dest)
-        end
-        fprintf(1,'Saving Res files...\n');
-        tic
-        resfile = fullfile(dest,strcat('res_arfi_',num2str(timeStamp),'.mat'));
-        save(resfile,'bdata','arfidata','options','-v7.3');
-        fprintf(1,'Save Time for ARFI = %2.2fs\n',toc)
-    end
-end
-
-if options.dataflow.SWEI
-    if ~isempty(sweidata.traced_gate)
-        options.dataflow.saveRes = 1;
-        fprintf(1,'Detected Traced Gate. Saving SWEI Res file...\n');
-        dest = fullfile(pwd,'res');
-        if ~exist(dest,'dir')
-            warning('res folder does not exist...creating it')
-            mkdir(dest)
-        end
-        fprintf(1,'Saving Res files...\n');
-        tic
-        resfile = fullfile(dest,strcat('res_swei_',num2str(timeStamp),'.mat'));
-        save(resfile,'bdata','sweidata','options','-v7.3');
-        fprintf(1,'Save Time for SWEI = %2.2fs\n',toc)
-    end
-end
+% if options.dataflow.ARFI
+%     if ~isempty(arfidata.traced_gate)
+%         options.dataflow.saveRes = 1;
+%         fprintf(1,'Detected Traced Gate. Saving ARFI Res file...\n');
+%         dest = fullfile(pwd,'res');
+%         if ~exist(dest,'dir')
+%             warning('res folder does not exist...creating it')
+%             mkdir(dest)
+%         end
+%         fprintf(1,'Saving Res files...\n');
+%         tic
+%         resfile = fullfile(dest,strcat('res_arfi_',num2str(timeStamp),'.mat'));
+%         save(resfile,'bdata','arfidata','options','-v7.3');
+%         fprintf(1,'Save Time for ARFI = %2.2fs\n',toc)
+%     end
+% end
+% 
+% if options.dataflow.SWEI
+%     if ~isempty(sweidata.traced_gate)
+%         options.dataflow.saveRes = 1;
+%         fprintf(1,'Detected Traced Gate. Saving SWEI Res file...\n');
+%         dest = fullfile(pwd,'res');
+%         if ~exist(dest,'dir')
+%             warning('res folder does not exist...creating it')
+%             mkdir(dest)
+%         end
+%         fprintf(1,'Saving Res files...\n');
+%         tic
+%         resfile = fullfile(dest,strcat('res_swei_',num2str(timeStamp),'.mat'));
+%         save(resfile,'bdata','sweidata','options','-v7.3');
+%         fprintf(1,'Save Time for SWEI = %2.2fs\n',toc)
+%     end
+% end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -1,16 +1,19 @@
 function datastruct = motionFilter(datastruct,options,par,type)
 
+disp = datastruct.disp;
+
 % Reshape Displacements from 4D back to 3D in case of SWEI data
 if (strcmpi(options.dispEst.ref_type,'anchored') || strcmpi(options.dispEst.ref_type,'progressive'))
-    if size(size(datastruct.disp),2)==4
-        [ax beam push tstep] = size(datastruct.disp);
-        datastruct.disp = reshape(datastruct.disp,ax,beam*push,tstep);
+    if size(size(disp),2)==4
+        [ax beam push tstep] = size(disp);
+        disp = reshape(disp,ax,beam*push,tstep);
         reshape_flag = 1;
     else
         reshape_flag = 0;
     end
     nref = par.nref;
     npush = par.npush;
+    nreverb = par.nreverb;
 else
     error('Reference Type not recognized or not supported')
 end
@@ -22,16 +25,27 @@ end
 % datastruct.disp = test;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-if (strcmpi(options.motionFilter.method,'LPF') || strcmpi(options.motionFilter.method,'Both'))
+if (strcmpi(options.motionFilter.method,'LPF') || strcmpi(options.motionFilter.method,'BPF') || strcmpi(options.motionFilter.method,'LPF_Poly') || strcmpi(options.motionFilter.method,'BPF_Poly'))
     
-    fprintf(1,'Executing Lowpass filter: Cutoff set to %d Hz\n',options.motionFilter.LPF_Cutoff)
+%     test = nan(size(disp));
     
-    [datastruct.trackTime, datastruct.disp] = filtArfiData_TTE(datastruct.axial,datastruct.trackTime,datastruct.disp,nref,par,options.motionFilter.LPF_Cutoff);
-
+    if (strcmpi(options.motionFilter.method,'LPF') || strcmpi(options.motionFilter.method,'LPF_Poly'))
+        fprintf(1,'Executing Lowpass filter: Cutoff set to %d Hz\n',options.motionFilter.Cutoff(2))
+        filt_type = 'LPF';
+    end
+    if (strcmpi(options.motionFilter.method,'BPF') || strcmpi(options.motionFilter.method,'BPF_Poly'))
+        fprintf(1,'Executing Bandpass filter: Cutoff set to [%d %d] Hz\n',options.motionFilter.Cutoff(1),options.motionFilter.Cutoff(2))
+        filt_type = 'BPF';
+    end
+    
+    [~, disp(:,:,1:nref)] = filtArfiData_TTE(datastruct.axial,datastruct.trackTime(1:nref),disp(:,:,1:nref),nref,par,options.motionFilter.Cutoff,filt_type);
+    [~, disp(:,:,nref+npush+nreverb+1:end)] = filtArfiData_TTE(datastruct.axial,datastruct.trackTime(nref+npush+nreverb+1:end),disp(:,:,nref+npush+nreverb+1:end),nref,par,options.motionFilter.Cutoff,filt_type);
+    
 end
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-if (strcmpi(options.motionFilter.method,'Polynomial') || strcmpi(options.motionFilter.method,'Both'))
+if (strcmpi(options.motionFilter.method,'LPF_Poly') || strcmpi(options.motionFilter.method,'BPF_Poly') || strcmpi(options.motionFilter.method,'Poly'))
+    
+    keyboard
     
     if strcmpi(type,'pre')
         fprintf(1,'Executing Polynomial filter: TimeRange set to [%s] us\n',num2str(options.motionFilter.timeRange_pre,'%2.2f '))
@@ -50,16 +64,23 @@ if (strcmpi(options.motionFilter.method,'Polynomial') || strcmpi(options.motionF
     tmask(nref+(1:npush)) = false;
     tmask(nref+(1:npush*length(par.pushFocalDepth))) = false;
     
-    [datastruct.disp datastruct.motion] = linearmotionfilter(datastruct.disp,datastruct.trackTime,find(tmask),options.motionFilter.order);
+    [disp motion] = linearmotionfilter(disp,datastruct.trackTime,find(tmask),options.motionFilter.order);
 %    [datastruct.disp datastruct.motion] = linearmotionfilter(datastruct.disp,datastruct.trackTime,find(tmask),options.motionFilter.order,datastruct.cc,options.display.cc_thresh);
 end
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 if reshape_flag
     if (strcmpi(options.dispEst.ref_type,'anchored') || strcmpi(options.dispEst.ref_type,'progressive'))
-        datastruct.disp = reshape(datastruct.disp,ax,beam,push,tstep);
+        disp = reshape(disp,ax,beam,push,tstep);
     else
         error('Reference Type not recognized or not supported')
     end
     
+end
+
+if strcmpi(type,'pre')
+    datastruct.disp_mf_pre = disp;
+    if exist('motion','var') datastruct.motion_pre = motion; end
+elseif strcmpi(type,'push')
+    datastruct.disp_mf_push = disp;
+    if exist('motion','var') datastruct.motion_push = motion; end
 end

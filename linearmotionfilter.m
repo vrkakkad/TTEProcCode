@@ -15,7 +15,7 @@ if exist('ccthresh','var');
     end
     
 end
-t = t./mode(diff(t));
+t = t./mode(diff(t)); % Convert time to indices (with 0 at 0)
 %arfidata1 = 1e6 * arfidata1;
 if order == 1 %don't bother inverting the matrix, we can skip to the least squares solution
     Y = arfidata1(:,:,tidx);

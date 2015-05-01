@@ -1,4 +1,4 @@
-function [t, arfidata] = filtArfiData(axial, t, arfidata, nref, par, cutoffFreq, axFiltKer);
+function [t, arfidata] = filtArfiData_TTE(axial, t, arfidata, nref, par, cutoffFreq, type, axFiltKer);
 % function [t arfidata] = filtArfiData(axial, t, arfidata, cutoffFreq, axFiltKer, stdCutoff);
 %
 % this function is designed to work with a single acquisition (numAcq=1)
@@ -8,8 +8,9 @@ function [t, arfidata] = filtArfiData(axial, t, arfidata, nref, par, cutoffFreq,
 % if nargin<5,axFiltKer = 0.5;end % axial filter length (mm)
 % if nargin<6,stdCutoff = 10;end % cutoff in microns for the minimum standard deviation for push/reverb time steps
 
-if nargin<6,cutoffFreq = 500;end % filter cutoff frequencies (Hz)
-if nargin<7,axFiltKer = 0.5;end % axial filter length (mm)
+if nargin<6,cutoffFreq = [20 1000];end % filter cutoff frequencies (Hz)
+if nargin<7,type = 'LPF';end % filter cutoff frequencies (Hz)
+if nargin<8,axFiltKer = 0.5;end % axial filter length (mm)
 % if nargin<7,stdCutoff = 10;end % cutoff in microns for the minimum standard deviation for push/reverb time steps
 
 
@@ -35,8 +36,9 @@ if (t(end)-t(end-1))>10*dt,ts(end)=0;end
 t = t(ts);t = round(t*1e4)/1e4; % numerical tolerance issues
 tn = t; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% tn = t(1):dt:t(end);tn = round(tn*1e4)/1e4; % numerical tolerance issues
 fs = 1./dt*1e3;
-% [B A] = butter(2, cutoffFreq./(fs/2)); % filter at 20Hz-1kHz
-[B A] = butter(2, cutoffFreq./(fs/2),'low');
+if strcmpi(type,'BPF') [B A] = butter(2, cutoffFreq./(fs/2)); end % pass between cutoff
+if strcmpi(type,'LPF') [B A] = butter(2, cutoffFreq(2)./(fs/2),'low'); end % filter beyond cutoff
+
 B = double(B); A = double(A);
 n = max(1,round(axFiltKer./mean(diff(axial)))); % axial filter (minimum 1 sample)
 
@@ -53,11 +55,15 @@ arfidata = temporalFilter(arfidata, t, tn, B, A); % interpolate and filter in ti
 fprintf(1, 'Temporal filter complete in %0.2f seconds\n', toc(tstart));
 arfidata = single(arfidata);
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% This may be required when using PBF with ARFI Data
+
 % Not Required after moving to a LPF as opposed to a BPF
 % % Adding back lost DC component (values hard coded for TTE sequences)
 % base = mean(arfidata(:,:,1:nref),3);
 % base = repmat(base,[1 1 size(arfidata,3)]);
 % arfidata = arfidata - base;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 t = tn;
 

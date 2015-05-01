@@ -103,9 +103,9 @@ for i=1:size(bdata.bimg,3);
         ax12 = axes('Position',[0.45 0.7 0.52 0.2]);
         frame = abs(sweidata.IQ(:,:,1)); % Display first frame only
         frame = db(frame/max(frame(:)));
-        temp = find(sweidata.IQaxial>edge(1)-7.5,1);
+        temp = find(sweidata.IQaxial>edge(1)-1,1);
         if isempty(temp); idx(1) = 1; else idx(1) = temp; end; clear temp
-        temp = find(sweidata.IQaxial>edge(2)+7.5,1);
+        temp = find(sweidata.IQaxial>edge(2)+1,1);
         if isempty(temp); idx(2) = length(sweidata.IQaxial); else idx(2) = temp; end; clear temp
         imagesc(linspace(0,sweidata.acqTime(end),size(sweidata.IQ,2)),sweidata.IQaxial(idx(1):idx(2)),frame(idx(1):idx(2),:),options.display.IQrange)
         clear idx
@@ -174,7 +174,7 @@ if strcmpi(trace_input,'y')
     traced_gate = mean(gate,2);
     
     if (min(gate(:))<sweidata.axial(1) || max(gate(:))>sweidata.axial(end))
-        warning('Depth gate requested (%2.2f-%2.2f mm) falls outside the range over which displacements are computed (%2.2f-%2.2f mm)',min(gate(:)),max(gate(:)),arfidata.axial(1),arfidata.axial(end));
+        warning('Depth gate requested (%2.2f-%2.2f mm) falls outside the range over which displacements are computed (%2.2f-%2.2f mm)',min(gate(:)),max(gate(:)),sweidata.axial(1),sweidata.axial(end));
     end
 end
 
@@ -182,7 +182,6 @@ for i=1:nacqT
     gate_idx(i,:) = [find(sweidata.axial>gate(i,1),1,'first') find(sweidata.axial<gate(i,2),1,'last')];
 end
 
-keyboard
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Incorporate ECG Data into this figure
 if ~isempty(sweidata.ecg)
@@ -239,7 +238,7 @@ end
 %% Plot Axial Scan Data
 if options.display.axial_scan
     for i=1:ngates
-        set(0,'currentFigure',f1)
+        set(0,'currentFigure',fig1)
         options.display.gateOffset = offsets(i);
         gate = (par.pushFocalDepth + options.display.gateOffset + [-options.display.gateWidth/2 options.display.gateWidth/2]);
         gate = repmat(gate,[nacqT 1]);
@@ -252,22 +251,28 @@ if options.display.axial_scan
         end
         
         delete(r1)
-        r1 = rectangle('Position',[min(sweidata.lat(:)) min(gate(:)) (max(sweidata.lat(:))-min(sweidata.lat(:))) options.display.gateWidth ],'EdgeColor','g','Linewidth',2,'Parent',p1);
-        title(sprintf('HQ B-Mode: Frame %d (t = %1.1f s)\n Gate Offset = %2.2f mm ',size(bdata.bimg,3),bdata.t(size(bdata.bimg,3)),offsets(i)),'fontsize',fsize','fontweight','bold','Parent',p1)
-        p2 = axes('Position',[0.45 0.3 0.52 1]);
-        frame = sweidata.IQ(:,:,1);
-        imagesc(linspace(0,range(sweidata.lat(:))*nacqT,size(sweidata.IQ,2)),sweidata.IQaxial,db(frame/max(frame(:))),options.display.IQrange)
-        hold on
-        plot(linspace(0,range(sweidata.lat(:))*nacqT,nacqT),sweidata.axial(1)*ones(1,nacqT),'b','Linewidth',2)
-        plot(linspace(0,range(sweidata.lat(:))*nacqT,nacqT),sweidata.axial(end)*ones(1,nacqT),'b','Linewidth',2)
-        plot(linspace(0,range(sweidata.lat(:))*nacqT,nacqT),gate(:,1),'g','Linewidth',2)
-        plot(linspace(0,range(sweidata.lat(:))*nacqT,nacqT),gate(:,2),'g','Linewidth',2)
-        hold off
-        axis image
-        ylabel('Axial (mm)','fontsize',fsize','fontweight','bold')
-        set(gca,'xTickLabel',[])
-        title(sprintf('M-Mode Frames\n Harmonic Tracking = %d',par.isHarmonic),'fontsize',fsize,'fontweight','bold')
-        ylim([max(edge(1)-15,sweidata.IQaxial(1)) min(edge(2)+15,sweidata.IQaxial(end))])
+        r1 = rectangle('Position',[min(sweidata.lat(:)) min(gate(:)) (max(sweidata.lat(:))-min(sweidata.lat(:))) options.display.gateWidth ],'EdgeColor','g','Linewidth',2,'Parent',ax11);
+        title(sprintf('HQ B-Mode: Frame %d (t = %1.1f s)\n Gate Offset = %2.2f mm ',size(bdata.bimg,3),bdata.t(size(bdata.bimg,3)),offsets(i)),'fontsize',dispPar.fsize','fontweight','bold','Parent',ax11)
+        ax12 = axes('Position',[0.45 0.7 0.52 0.2]);
+        frame = abs(sweidata.IQ(:,:,1)); % Display first frame only
+        frame = db(frame/max(frame(:)));
+        temp = find(sweidata.IQaxial>edge(1)-1,1);
+        if isempty(temp); idx(1) = 1; else idx(1) = temp; end; clear temp
+        temp = find(sweidata.IQaxial>edge(2)+1,1);
+        if isempty(temp); idx(2) = length(sweidata.IQaxial); else idx(2) = temp; end; clear temp
+        imagesc(linspace(0,sweidata.acqTime(end),size(sweidata.IQ,2)),sweidata.IQaxial(idx(1):idx(2)),frame(idx(1):idx(2),:),options.display.IQrange)
+        clear idx
+        hold(ax12,'on')
+        l1 = plot(linspace(0,sweidata.acqTime(end),nacqT),sweidata.axial(1)*ones(1,nacqT),'b','Linewidth',2,'Parent',ax12);
+        l2 = plot(linspace(0,sweidata.acqTime(end),nacqT),sweidata.axial(end)*ones(1,nacqT),'b','Linewidth',2,'Parent',ax12);
+        l3 = plot(linspace(0,sweidata.acqTime(end),nacqT),gate(:,1),'g','Linewidth',2,'Parent',ax12);
+        l4 = plot(linspace(0,sweidata.acqTime(end),nacqT),gate(:,2),'g','Linewidth',2,'Parent',ax12);
+        hold(ax12,'off')
+        xlabel('Acquisition Time (s)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+        ylabel('Axial (mm)','fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+        title(sprintf('M-Mode Frames\n Harmonic Tracking = %d\n Track PRF = %1.2f kHz, Push = %d x %d \\mus',par.isHarmonic,trackPRF,par.npush,par.pushDurationusec),'fontsize',dispPar.fsize,'fontweight','bold','Color',dispPar.txt)
+        colormap(gray); freezeColors;
+        set(ax12,'xcolor',dispPar.txt,'ycolor',dispPar.txt,'fontweight','bold','xgrid','on','gridLineStyle','--','UserData','mmodeIQ_ax')
         
         % Compute Axially Averaged Data
         switch options.display.sw_display
@@ -304,7 +309,7 @@ if options.display.axial_scan
             p = imagesc(sweidata.trackTime(par.nref+1:end),sweidata.lat(round(mean(gate_idx(1,:))),:),raw(:,(par.nref+1:end),i),rng);
             set(p,'alphadata',~isnan(raw(:,(par.nref+1:end),i)))
             set(gca,'color',[0.4 0.4 0.4])
-            title(sweidata.acqTime(i),'fontsize',fsize','fontweight','bold')
+            title(sweidata.acqTime(i),'fontsize',dispPar.fsize','fontweight','bold')
             xlim([0 7])
         end
         
@@ -319,7 +324,7 @@ if options.display.axial_scan
             p = imagesc(sweidata.trackTime(par.nref+1:end),sweidata.lat(round(mean(gate_idx(1,:))),:),mf(:,(par.nref+1:end),i),rng);
             set(p,'alphadata',~isnan(raw(:,(par.nref+1:end),i)))
             set(gca,'color',[0.4 0.4 0.4])
-            title(sweidata.acqTime(i),'fontsize',fsize','fontweight','bold')
+            title(sweidata.acqTime(i),'fontsize',dispPar.fsize','fontweight','bold')
             xlim([0 7])
         end
         pause
@@ -421,6 +426,8 @@ if options.display.dvt_plots
 end
 
 % Compute Axially Averaged SpatiotemporalData
+    clear raw mf
+
 switch options.display.sw_display
     case 'disp'
         for i=1:nacqT
