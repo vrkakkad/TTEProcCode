@@ -1,4 +1,4 @@
-function [bmode arfi swei hr] = extractECG(timeStamp,plot_flag,dt)
+function [bmode,arfi,swei,hr] = extractECG(timeStamp,plot_flag,dt)
 
 load(strcat('ECG_data_',timeStamp));
 
@@ -10,7 +10,15 @@ B = double(B); A = double(A);
 ecgdata(:,3) = single(filtfilt(B,A,double(ecgdata(:,3))));
 ecgdata(:,3) = ecgdata(:,3)/max(ecgdata(:,3));
 
+if abs(min(ecgdata(:,3)))>1
+    ecgdata(:,3) = -ecgdata(:,3);
+end
+
 hr = calcHR(ecgdata(:,1),ecgdata(:,3),plot_flag);
+if isempty(hr)
+    hr = calcHR(ecgdata(:,1),ecgdata(:,3),1);
+    pause
+end
 
 trig_trace_threshold = 5e-3;
 high = ecgdata(:,2)>trig_trace_threshold;
@@ -20,7 +28,7 @@ t_high = find(high==1)/fs;
 t_gap = diff(t_high);
 
 if plot_flag
-    figure(101)
+    figure(501)
     subplot(313)
     stem(t_gap)
     grid on
@@ -132,12 +140,11 @@ try
     
     if (isempty(bmode) || isempty(arfi) || isempty(swei))
         warning('ECG Triggers are misaligned: Check manually')
-        close gcf
     end
 catch
     disp('Error!')
     warning('ECG Triggers are misaligned: Check manually')
-    close gcf
+    close(501)
     bmode = []; arfi = []; swei = [];
     return
 end
@@ -151,5 +158,5 @@ if plot_flag
     plot(ecgdata(ind_s_stop,1),1.5,'o','markerfacecolor','g')
     xlabel('Acq Time (s)')
     pause
-    close gcf
 end
+if ishandle(501); close(501);end

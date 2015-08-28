@@ -1,4 +1,4 @@
-function [arfidata motion A] = linearmotionfilter(arfidata0,t,tidx,order,cc,ccthresh)
+function [arfidata,motion,A] = linearmotionfilter(arfidata0,t,tidx,order,cc,ccthresh)
 
 arfidata0 = 1e6*arfidata0;
 arfidata1 = arfidata0;
@@ -48,7 +48,7 @@ else
     motion = T*A;
     motion = reshape(motion,length(t),size(arfidata0,1),size(arfidata0,2));
     motion = permute(motion,[2 3 1]);
-    
+        
     tidx1 = find(t<-1.5);
     Y = arfidata1(:,:,tidx1);
     X = repmat(reshape(t(tidx1),1,1,[]),[size(Y,1),size(Y,2),1]);

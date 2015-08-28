@@ -2,7 +2,6 @@ function bdata = extractBmode(timeStamp)
 
 bmodeParFname = sprintf('SWIF_BModeOutputImageDims0_%s.txt', timeStamp);
 bmodeFname = sprintf('SWIF_BModeOutputImage0_%s.img', timeStamp);
-
 if ~exist(bmodeParFname, 'file')
     warning('B-mode parameters file not detected');
 elseif ~exist(bmodeFname, 'file')
@@ -52,15 +51,14 @@ else
     bimg = reshape(bimg, bmodePar.SamplesPerLine, bmodePar.LinesPerSlice, []);
     bimg = bimg(:,:,1:end-1);
     bax = (0:bmodePar.SamplesPerLine-1)./bmodePar.NumSamplesPerMm;
-    blat = linspace(bmodePar.FirstLinePos, bmodePar.LastLinePos, bmodePar.LinesPerSlice);
-        
+%     blat = linspace(bmodePar.FirstLinePos, bmodePar.LastLinePos, bmodePar.LinesPerSlice);
     % Scan Convert B-mode (if required)
-    fprintf(1,'Scan Converting B-mode Data...\n')
+    fprintf(1,'>>> Scan Converting B-mode Data...\n');
     if strcmpi(bmodePar.PqMethod,'EqualSineAngle')
-        [bdata.bimg,bdata.bax,bdata.blat] = scan_convert('sector',single(bimg),bmodePar.FovAzimMin,bmodePar.FovAzimSpan,...
-            0.1*bmodePar.VectorApexAzimZMm,2,(1540/2)/(1e-3*bax(2)-bax(1)));
+        [bdata.bimg,bdata.bax,bdata.blat] = scan_convert('sector',single(bimg), ...
+            bmodePar.FovAzimMin,bmodePar.FovAzimSpan,0.1*bmodePar.VectorApexAzimZMm,2, ...
+            (1540/2)/(1e-3*bax(2)-bax(1)));
     end
-    
     bdata.t = 0:1/round(bmodePar.ChunkRateHz):(size(bimg,3)-1)/round(bmodePar.ChunkRateHz);
     bdata.bax = 10*bdata.bax;
     bdata.blat = 10*bdata.blat;

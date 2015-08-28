@@ -1,4 +1,4 @@
-function [u, Iup, Qup, fdemest] = runLoupas_gated(I, Q, interpFactor, kernelLength, axial, par, start_depth, end_depth)
+function [u,Iup,Qup,options,fdemest] = runLoupas_gated(I, Q, interpFactor, kernelLength, axial, par, start_depth, end_depth,options)
 % function [u Iup Qup] = runLoupas(I, Q, interpFactor, axial, par)
 %
 % Inputs: I - in-phase data
@@ -13,7 +13,7 @@ function [u, Iup, Qup, fdemest] = runLoupas_gated(I, Q, interpFactor, kernelLeng
 
 % Extract IQ Data within specified gate
 % idx prior to upsampling data
-start_idx = find(axial(1:interpFactor:end)>start_depth,1); 
+start_idx = find(axial(1:interpFactor:end)>start_depth,1);
 end_idx = find(axial(1:interpFactor:end)>end_depth,1);
 
 if isempty(start_idx);start_idx = 1;end
@@ -28,7 +28,7 @@ fc = par.fc;
 c = par.c; % m/s
 kasai_scale = c/(2*pi);
 
-D = size(I); 
+D = size(I);
 D(1) = D(1).*interpFactor;
 tstart = tic;
 
@@ -46,7 +46,7 @@ tstart = tic;
 Iup = reshape(Iup, D);
 Qup = reshape(Qup, D);
 % idx post to upsampling data
-start_idx = find(axial>start_depth,1); 
+start_idx = find(axial>start_depth,1);
 end_idx = find(axial>end_depth,1);
 tend = toc(tstart);
 fprintf(1, 'Upsampling Computation Time: %0.2fs\n', tend);
@@ -61,7 +61,7 @@ fdem_vec = fc_vec./fs;
 
 %Compute Displacements
 tstart = tic;
-u = zeros(size(Iup));
+u = nan(size(Iup));
 fdemest = zeros(size(Iup));
 % N = size(Iup,1);
 % parfor i = 1:size(Iup,2)
@@ -71,13 +71,13 @@ fdemest = zeros(size(Iup));
 % end
 
 for i = 1:size(Iup,2)
-    if par.ref_idx ~=-1
-        Iref = squeeze(Iup(:,i,par.ref_idx));
-        Qref = squeeze(Qup(:,i,par.ref_idx));
-%         Iref = squeeze(Iup(:,1,par.ref_idx));
-%         Qref = squeeze(Qup(:,1,par.ref_idx));
+    if strcmpi(options.dispEst.ref_type,'anchored')
+        Iref = squeeze(Iup(:,i,options.dispEst.ref_idx));
+        Qref = squeeze(Qup(:,i,options.dispEst.ref_idx));
+        %         Iref = squeeze(Iup(:,1,par.ref_idx));
+        %         Qref = squeeze(Qup(:,1,par.ref_idx));
     end
-%     u(:,i,:) = loupasParallel(Iref,Qref,squeeze(Iup(:,i,:)),squeeze(Qup(:,i,:)),N,kasai_avg,fdem_vec,fc_vec,kasai_scale);
+    %     u(:,i,:) = loupasParallel(Iref,Qref,squeeze(Iup(:,i,:)),squeeze(Qup(:,i,:)),N,kasai_avg,fdem_vec,fc_vec,kasai_scale);
     if i==1
         fprintf(1, 'Displacement Estimation for Beam %d/%d', i, size(Iup,2));
     elseif i==size(Iup,2)
@@ -90,10 +90,14 @@ for i = 1:size(Iup,2)
         fprintf(1, repmat('\b', [1 length(tmpS)]));
         fprintf(1, '%d/%d', i, size(Iup,2));
     end
-    if par.ref_idx ==-1
-        skip = par.npush+par.nreverb; % nframes to skip ie. push+reverb frames
-        di = 1; % diff for progressive tracking (ie. 1 is A-B, B-C, 2 is A-C, B-D) 
-        idx = [1:par.nref,par.nref+1+skip:par.ensemble];
+    if strcmpi(options.dispEst.ref_type,'progressive')
+        skip = options.dispEst.dims(2) + options.dispEst.dims(3); % nframes to skip ie. push+reverb frames
+        di = options.dispEst.di; % diff for progressive tracking (ie. 1 is A-B, B-C, 2 is A-C, B-D)
+        if size(I,3) == 2
+            idx  = [1 2];
+        else
+            idx = [1:options.dispEst.dims(1),options.dispEst.dims(1)+1+skip:options.dispEst.dims(5)];
+        end
         for k = 1:size(idx,2)-di
             Iref = squeeze(Iup(:,i,idx(k)));
             Qref = squeeze(Qup(:,i,idx(k)));
@@ -110,16 +114,22 @@ for i = 1:size(Iup,2)
         end
     end
 end
-
 % Generating accumulated displacements from incremental
-if par.ref_idx ==-1
-    u(:,:,par.nref-1:-1:1) = -cumsum(u_inc(:,:,par.nref-1:-1:1),3);
-    % u(:,:,par.nref) retains zeros
-    u(:,:,par.nref+(1:skip)) = 1e-6*(-20 + 40*rand(size(u,1),size(u,2),skip)); % junk frames (push/reverb - would need to get interpolated through)
-    u(:,:,par.nref+skip+1:end+1-di) = cumsum(u_inc(:,:,par.nref:end),3);   
+if strcmpi(options.dispEst.ref_type,'progressive')
+    options.dispEst.dims(1) = options.dispEst.dims(1)-di; % nref = nref - di
+    options.dispEst.ref_idx = options.dispEst.ref_idx - di;
+    if options.dispEst.ref_idx < 1; options.dispEst.ref_idx = 1; end
+    options.dispEst.dims(5) = options.dispEst.dims(5)-di; % nensemble = nensemble - di
+    u = u(:,:,1:options.dispEst.dims(5));
+    u_inc = u_inc./di;
+    temp = cumsum(u_inc,3);
+    u(:,:,1:options.dispEst.dims(1)) = temp(:,:,1:options.dispEst.dims(1));
+%     u(:,:,options.dispEst.dims(1)+1:sum(options.dispEst.dims(1:3))) = nan;
+    u(:,:,sum(options.dispEst.dims(1:3))+1:options.dispEst.dims(5)) = temp(:,:,options.dispEst.dims(1)+1:end);
+%     u = u - repmat(u(:,:,options.dispEst.ref_idx),[1 1 options.dispEst.dims(5)]);
 end
-    u = -u.*1e6;
-    u = u(1:end-kasai_avg-1, :, :, :);
+u = -u.*1e6;
+u = u(1:end-kasai_avg-1, :, :, :);
+u(:,:,options.dispEst.dims(1)+1:sum(options.dispEst.dims(1:3))) = nan;
 tend = toc(tstart);
-
 fprintf(1, 'Displacement Computation Time: %0.2fs\n', tend);
